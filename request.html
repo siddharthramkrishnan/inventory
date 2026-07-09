@@ -645,15 +645,8 @@ function onDeptChange() {
 
   if (!dept) { personWrap.classList.remove('show'); return; }
 
-  const deptKeyMap = {
-    'R&D': 'Research & Development',
-    'Manufacturing': 'Manufacturing',
-    'Corporate / Admin': 'Corporate Affairs, Finance and Administrative',
-    'Quality & Regulatory': 'Quality & Regulatory Affairs',
-  };
-
-  const key = deptKeyMap[dept];
-  const people = (key && EMPLOYEES[key]) ? EMPLOYEES[key] : [];
+  // Keys in EMPLOYEES match dropdown values directly
+  const people = EMPLOYEES[dept] || [];
 
   personSelect.innerHTML = '<option value="">— Select your name —</option>' +
     people.slice().sort().map(p => '<option value="' + p + '">' + p + '</option>').join('');
