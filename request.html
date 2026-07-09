@@ -645,18 +645,20 @@ function onDeptChange() {
 
   if (!dept) { personWrap.classList.remove('show'); return; }
 
-  // Map dropdown value to employees key
   const deptKeyMap = {
     'R&D': 'Research & Development',
     'Manufacturing': 'Manufacturing',
     'Corporate / Admin': 'Corporate Affairs, Finance and Administrative',
     'Quality & Regulatory': 'Quality & Regulatory Affairs',
   };
+
   const key = deptKeyMap[dept];
-  const people = EMPLOYEES[key] || [];
+  const people = (key && EMPLOYEES[key]) ? EMPLOYEES[key] : [];
 
   personSelect.innerHTML = '<option value="">— Select your name —</option>' +
-    people.sort().map(p => `<option>${p}</option>`).join('');
+    people.slice().sort().map(p => '<option value="' + p + '">' + p + '</option>').join('');
+
+  personWrap.style.display = 'block';
   personWrap.classList.add('show');
 }
 
