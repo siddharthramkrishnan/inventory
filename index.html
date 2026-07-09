@@ -692,10 +692,12 @@ async function submitAdjustment() {
     if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
       await new Promise(r => setTimeout(r, 800)); // demo mode
     } else {
+      // Use a form-encoded POST to avoid CORS preflight issues with Apps Script
+      const form = new FormData();
+      form.append('data', JSON.stringify(payload));
       await fetch(APPS_SCRIPT_URL, {
-        method: 'POST', mode: 'no-cors',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload),
+        method: 'POST',
+        body: form,
       });
     }
 
