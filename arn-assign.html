@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARN Assignment · Achira Labs</title>
+<style>
+  :root{
+    --ink:#16211f;
+    --paper:#f6f7f5;
+    --card:#ffffff;
+    --accent:#1f5f52;
+    --accent-dark:#153f37;
+    --line:#dde3e0;
+    --muted:#5c6b67;
+    --amber:#a5690c;
+    --amber-bg:#fdf3e2;
+    --green:#1e7a44;
+    --green-bg:#e7f5ec;
+    --red:#b3312c;
+    --red-bg:#fbe9e8;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-tap-highlight-color:transparent;
+  }
+  header{
+    background:var(--accent-dark);
+    color:#fff;
+    padding:22px 18px 20px;
+  }
+  header h1{
+    margin:0;
+    font-size:19px;
+    font-weight:700;
+    letter-spacing:0.2px;
+  }
+  header p{
+    margin:4px 0 0;
+    font-size:13px;
+    color:#cfe0da;
+  }
+  .wrap{
+    max-width:640px;
+    margin:0 auto;
+    padding:16px 14px 60px;
+  }
+  .tabs{
+    display:flex;
+    gap:8px;
+    margin-bottom:16px;
+    background:#eef0ee;
+    padding:4px;
+    border-radius:12px;
+  }
+  .tab-btn{
+    flex:1;
+    border:none;
+    background:transparent;
+    padding:11px 8px;
+    font-size:14px;
+    font-weight:600;
+    color:var(--muted);
+    border-radius:9px;
+    cursor:pointer;
+  }
+  .tab-btn.active{
+    background:var(--card);
+    color:var(--accent-dark);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:14px;
+  }
+  label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--muted);
+    margin:0 0 6px;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+  }
+  .req::after{
+    content:" *";
+    color:var(--red);
+  }
+  input[type=text], input[type=number], select, textarea{
+    width:100%;
+    padding:11px 12px;
+    font-size:15.5px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+    color:var(--ink);
+    margin-bottom:14px;
+    font-family:inherit;
+  }
+  textarea{ resize:vertical; min-height:56px; }
+  input:focus, select:focus, textarea:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .row2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  .hint{
+    font-size:12.5px;
+    color:var(--muted);
+    margin:-10px 0 14px;
+  }
+
+  .suggest-box{
+    border:1.5px dashed var(--accent);
+    background:#f0f6f4;
+    border-radius:8px;
+    padding:14px;
+    margin-bottom:14px;
+  }
+  .suggest-box.empty{
+    border-color:var(--line);
+    background:#fafbfa;
+    color:var(--muted);
+    font-size:13.5px;
+  }
+  .suggest-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:6px;
+  }
+  .suggest-code{
+    font-size:18px;
+    font-weight:800;
+    color:var(--accent-dark);
+    letter-spacing:0.3px;
+  }
+  .confidence{
+    font-size:11px;
+    font-weight:700;
+    padding:3px 9px;
+    border-radius:20px;
+    text-transform:uppercase;
+    letter-spacing:0.3px;
+  }
+  .confidence.High{ background:var(--green-bg); color:var(--green); }
+  .confidence.Medium{ background:var(--amber-bg); color:var(--amber); }
+  .confidence.Low{ background:var(--red-bg); color:var(--red); }
+  .suggest-label{ font-size:14px; margin-bottom:4px; }
+  .suggest-reason{ font-size:12.5px; color:var(--muted); }
+
+  .btn{
+    display:inline-block;
+    width:100%;
+    text-align:center;
+    padding:13px 16px;
+    font-size:15.5px;
+    font-weight:700;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    background:var(--accent);
+    color:#fff;
+  }
+  .btn:active{ background:var(--accent-dark); }
+  .btn.secondary{
+    background:transparent;
+    color:var(--accent-dark);
+    border:1.5px solid var(--accent);
+  }
+  .btn.small{
+    width:auto;
+    padding:9px 14px;
+    font-size:13.5px;
+  }
+  .btn:disabled{ opacity:0.5; cursor:not-allowed; }
+
+  .status-msg{
+    padding:12px 14px;
+    border-radius:8px;
+    font-size:14px;
+    margin-bottom:14px;
+  }
+  .status-msg.ok{ background:var(--green-bg); color:var(--green); }
+  .status-msg.err{ background:var(--red-bg); color:var(--red); }
+
+  .pending-card{
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px;
+    margin-bottom:12px;
+    background:var(--card);
+  }
+  .pending-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .pending-name{ font-weight:700; font-size:15px; }
+  .pending-meta{ font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .pill{
+    font-size:11px;
+    font-weight:700;
+    padding:3px 9px;
+    border-radius:20px;
+    background:var(--amber-bg);
+    color:var(--amber);
+    white-space:nowrap;
+  }
+  .pending-arn{
+    margin:10px 0;
+    font-size:15px;
+    font-weight:700;
+    color:var(--accent-dark);
+  }
+  .pending-actions{
+    display:flex;
+    gap:10px;
+    margin-top:10px;
+  }
+  .pending-actions .btn{ flex:1; }
+  .btn-approve{ background:var(--green); }
+  .btn-approve:active{ background:#155c34; }
+  .btn-reject{ background:transparent; border:1.5px solid var(--red); color:var(--red); }
+
+  .correct-box{
+    display:none;
+    margin-top:10px;
+    border-top:1px dashed var(--line);
+    padding-top:10px;
+  }
+  .empty-state{
+    text-align:center;
+    color:var(--muted);
+    font-size:14px;
+    padding:30px 10px;
+  }
+  .section-title{
+    font-size:13px;
+    font-weight:700;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    margin:20px 0 10px;
+  }
+  .recent-item{
+    display:flex;
+    justify-content:space-between;
+    font-size:13.5px;
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .recent-item:last-child{ border-bottom:none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ARN Assignment</h1>
+  <p>Achira Labs · categorize new items &amp; approve</p>
+</header>
+
+<div class="wrap">
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="assign">New Item</button>
+    <button class="tab-btn" data-tab="approve">Verify &amp; Approve</button>
+  </div>
+
+  <!-- ================= ASSIGN TAB ================= -->
+  <div class="panel active" id="panel-assign">
+
+    <div class="card">
+      <label class="req">Material Name</label>
+      <input type="text" id="f-material" placeholder="e.g. Anti-CRP Monoclonal Antibody">
+
+      <div class="row2">
+        <div>
+          <label>Brand (if known)</label>
+          <input type="text" id="f-brand" placeholder="e.g. Sigma, Hytest">
+        </div>
+        <div>
+          <label class="req">Dept That Ordered It</label>
+          <select id="f-dept">
+            <option value="">Select…</option>
+            <option value="RD">R&amp;D</option>
+            <option value="MF">Manufacturing</option>
+            <option value="EN">Engineering</option>
+            <option value="GN">General</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="suggest-box" class="suggest-box empty">
+        Start typing the material name — a suggested category will appear here.
+      </div>
+
+      <label>Sub-Category <span style="font-weight:400;text-transform:none;color:var(--muted)">(auto-filled — change if it looks wrong)</span></label>
+      <select id="f-subcat">
+        <option value="">Select a department first…</option>
+      </select>
+
+      <div class="row2">
+        <div>
+          <label>Quantity</label>
+          <input type="number" id="f-qty" min="0" placeholder="e.g. 10">
+        </div>
+        <div>
+          <label class="req">GRN No.</label>
+          <input type="text" id="f-grn" placeholder="e.g. GR/DD/45">
+        </div>
+      </div>
+
+      <label class="req">Requested By</label>
+      <select id="f-requester">
+        <option value="">Select department above first…</option>
+      </select>
+
+      <label>Notes (optional)</label>
+      <textarea id="f-notes" placeholder="Anything the approver should know"></textarea>
+
+      <div id="assign-status"></div>
+      <button class="btn" id="btn-submit">Submit for Approval</button>
+    </div>
+
+    <div class="section-title">Submitted this session</div>
+    <div id="recent-list" class="card" style="display:none;"></div>
+  </div>
+
+  <!-- ================= APPROVE TAB ================= -->
+  <div class="panel" id="panel-approve">
+
+    <div class="card">
+      <label class="req">Your Department</label>
+      <select id="a-dept">
+        <option value="">Select…</option>
+        <option value="RD">R&amp;D</option>
+        <option value="MF">Manufacturing</option>
+        <option value="EN">Engineering</option>
+        <option value="GN">General</option>
+      </select>
+
+      <label class="req">Your Name</label>
+      <select id="a-name">
+        <option value="">Select department above first…</option>
+      </select>
+
+      <button class="btn secondary" id="btn-load">Load My Pending Items</button>
+    </div>
+
+    <div id="approve-status"></div>
+    <div id="pending-list"></div>
+  </div>
+
+</div>
+
+<script>
+/* =====================================================================
+   CONFIG — fill these in before deploying
+   ===================================================================== */
+const CONFIG = {
+  // Same Apps Script Web App URL used by inventory.html / request.html,
+  // once you've added the doGet/doPost handling from arn-backend-additions.gs
+  WEBAPP_URL: "https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec",
+};
+
+// TODO: paste your real EMPLOYEES object from request.html here so the
+// dropdowns match (54 people, 4 departments). Keys MUST match the dept
+// dropdown values exactly: "RD", "MF", "EN", "GN".
+const EMPLOYEES = {
+  RD: ["Employee A", "Employee B"],
+  MF: ["Employee C", "Employee D"],
+  EN: ["Employee E", "Employee F"],
+  GN: ["Employee G", "Employee H"],
+};
+
+/* =====================================================================
+   ARN REFERENCE DATA — the 22 sub-categories, grouped by department
+   ===================================================================== */
+const DEPT_LABELS = { RD: "R&D", MF: "Manufacturing", EN: "Engineering", GN: "General" };
+
+const SUBCATS = {
+  RD: [
+    { code: "AB", label: "Antibodies & Antigens" },
+    { code: "CH", label: "Chemicals & Reagents" },
+    { code: "FL", label: "Fluorophores & Bioconjugates" },
+    { code: "BG", label: "Biologics & Standards" },
+    { code: "CM", label: "R&D Consumables" },
+    { code: "KT", label: "Kits & Controls" },
+  ],
+  MF: [
+    { code: "RM", label: "Raw Materials" },
+    { code: "CT", label: "Cartridge Parts" },
+    { code: "PM", label: "Packaging Materials" },
+    { code: "CM", label: "MFG Consumables" },
+    { code: "JG", label: "Jigs & Fixtures" },
+    { code: "LB", label: "Labels & Stickers" },
+  ],
+  EN: [
+    { code: "EQ", label: "Equipment & Instruments" },
+    { code: "EL", label: "Electronics & PCBs" },
+    { code: "ME", label: "Mechanical Parts" },
+    { code: "OP", label: "Optical Components" },
+    { code: "SP", label: "Software & Services" },
+  ],
+  GN: [
+    { code: "HK", label: "Housekeeping & Canteen" },
+    { code: "OF", label: "Office Supplies" },
+    { code: "IT", label: "IT & Peripherals" },
+    { code: "FA", label: "Facilities" },
+    { code: "SF", label: "Safety" },
+  ],
+};
+
+// Fallback sub-category per department when nothing matches keywords/brand
+const DEFAULT_SUBCAT = { RD: "CH", MF: "RM", EN: "ME", GN: "OF" };
+
+/* =====================================================================
+   SUGGESTION ENGINE — ported from the Python v3 classifier.
+   Priority: brand match > keyword match > department-based fallback.
+   Tune these lists over time as you see wrong suggestions.
+   ===================================================================== */
+const BRAND_RULES = {
+  "sigma": "RD-CH", "himedia": "RD-CH", "srl": "RD-CH",
+  "hytest": "RD-AB", "medix": "RD-AB", "abcam": "RD-AB",
+  "dyomics": "RD-FL", "bioready": "RD-FL",
+  "sunrom": "EN-EL", "digikey": "EN-EL", "texas instruments": "EN-EL", "ti ": "EN-EL",
+  "edmund": "EN-OP", "thorlabs": "EN-OP",
+};
+
+const KEYWORD_RULES = {
+  "RD-AB": ["antibody","antibodies","antigen","monoclonal","polyclonal","mab","recombinant protein","igg","igm","albumin","bsa","casein","fibronectin","peroxidase","oxidase","urease","streptavidin","avidin","anti-"],
+  "RD-CH": ["buffer","reagent","solvent","acid","hepes","tris","edta","sodium azide","acrylamide","tween","ethanol","methanol","chemical","powder","solution"],
+  "RD-FL": ["dye","fluorophore","fitc","fluorescein","quantum dot","gold nano","biotin","europium","fluoresbrite","latex bead","conjugate"],
+  "RD-BG": ["who standard","atcc","reference standard","serum sample","viral sample","bacterial culture","control serum","plasma sample"],
+  "RD-CM": ["tip","tube","microplate","pcr plate","petri","coverslip","cover glass","cryovial","vial","swab","syringe filter","membrane filter","centrifuge tube"],
+  "RD-KT": ["kit","elisa","extraction kit","conjugation kit","control pack","qc pack","trilevel","reagent kit"],
+
+  "MF-RM": ["raw material","resin","polymer","laminate","wafer","substrate","adhesive","nitrocellulose","membrane roll"],
+  "MF-CT": ["cartridge","cassette"],
+  "MF-PM": ["packaging","carton","pouch","blister","foil","box","bag"],
+  "MF-CM": ["bottle cap","screw cap","o-ring","gasket seal"],
+  "MF-JG": ["jig","fixture","mould","mold","tooling","die"],
+  "MF-LB": ["label","sticker","barcode label","cryo label"],
+
+  "EN-EQ": ["instrument","equipment","analyzer","incubator","centrifuge","spectrophotometer","balance","autoclave","oven","shaker"],
+  "EN-EL": ["pcb","resistor","capacitor","microcontroller","sensor","relay","diode","transistor","arduino","raspberry pi","wire","cable","connector","circuit","ic chip"],
+  "EN-ME": ["screw","bolt","nut","bearing","spring","bracket","sheet metal","aluminum","steel","gasket","fastener","washer"],
+  "EN-OP": ["lens","mirror","optical filter","led","laser","fiber optic","prism","beam splitter"],
+  "EN-SP": ["software","license","subscription","calibration service","amc","annual maintenance","works contract"],
+
+  "GN-HK": ["housekeeping","canteen","cleaning","mop","detergent","tissue","soap","dustbin","broom"],
+  "GN-OF": ["stationery","pen","notebook","paper","printer cartridge","file folder","stapler"],
+  "GN-IT": ["laptop","mouse","keyboard","monitor","usb drive","hard disk","charger","webcam","printer"],
+  "GN-FA": ["furniture","chair","table","ac unit","ahu","civil work","storage rack","cupboard"],
+  "GN-SF": ["ppe","gloves","lab coat","goggles","fire extinguisher","safety shoes","mask","helmet","ear plug"],
+};
+
+function subcatLabel(deptCode, subcatCode) {
+  const list = SUBCATS[deptCode] || [];
+  const hit = list.find(s => s.code === subcatCode);
+  return hit ? hit.label : subcatCode;
+}
+
+function suggestArn(materialName, brand, orderingDept) {
+  const name = (materialName || "").toLowerCase();
+  const brandText = (brand || "").toLowerCase();
+
+  // 1. Brand match — most reliable signal we can collect from this form
+  for (const key in BRAND_RULES) {
+    if (brandText.includes(key) || name.includes(key)) {
+      const [dept, subcat] = BRAND_RULES[key].split("-");
+      return {
+        dept, subcat,
+        confidence: "High",
+        reason: `Brand "${key.trim()}" is typically ${subcatLabel(dept, subcat)}.`,
+      };
+    }
+  }
+
+  // 2. Keyword match — score every sub-category, take the best
+  let best = null, bestScore = 0, bestMatches = [];
+  for (const combo in KEYWORD_RULES) {
+    const words = KEYWORD_RULES[combo];
+    const matches = words.filter(w => name.includes(w));
+    if (matches.length > bestScore) {
+      bestScore = matches.length;
+      best = combo;
+      bestMatches = matches;
+    }
+  }
+  if (best && bestScore > 0) {
+    const [dept, subcat] = best.split("-");
+    return {
+      dept, subcat,
+      confidence: bestScore > 1 ? "High" : "Medium",
+      reason: `Matched "${bestMatches.slice(0,3).join('", "')}" in the name.`,
+    };
+  }
+
+  // 3. No match — fall back to the ordering department's default, low confidence
+  if (orderingDept) {
+    const subcat = DEFAULT_SUBCAT[orderingDept];
+    return {
+      dept: orderingDept, subcat,
+      confidence: "Low",
+      reason: `No strong match found — defaulted from the ordering department. Please check the sub-category.`,
+    };
+  }
+  return null;
+}
+
+/* =====================================================================
+   UI WIRING
+   ===================================================================== */
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+function fillEmployeeDropdown(deptSelectId, nameSelectId) {
+  const dept = document.getElementById(deptSelectId).value;
+  const nameSel = document.getElementById(nameSelectId);
+  nameSel.innerHTML = "";
+  if (!dept || !EMPLOYEES[dept]) {
+    nameSel.innerHTML = `<option value="">Select department above first…</option>`;
+    return;
+  }
+  nameSel.innerHTML = `<option value="">Select…</option>` +
+    EMPLOYEES[dept].map(n => `<option value="${n}">${n}</option>`).join("");
+}
+document.getElementById("f-dept").addEventListener("change", () => {
+  fillEmployeeDropdown("f-dept", "f-requester");
+  fillSubcatDropdown();
+  runSuggestion();
+});
+document.getElementById("a-dept").addEventListener("change", () => fillEmployeeDropdown("a-dept", "a-name"));
+
+function fillSubcatDropdown(forceCode) {
+  const dept = document.getElementById("f-dept").value;
+  const sel = document.getElementById("f-subcat");
+  if (!dept) {
+    sel.innerHTML = `<option value="">Select a department first…</option>`;
+    return;
+  }
+  // show all 22, grouped, so a wrong department guess can still be corrected
+  let html = "";
+  Object.keys(SUBCATS).forEach(d => {
+    html += `<optgroup label="${DEPT_LABELS[d]}">`;
+    SUBCATS[d].forEach(s => {
+      const val = `${d}-${s.code}`;
+      html += `<option value="${val}">${s.label} (${d}-${s.code})</option>`;
+    });
+    html += `</optgroup>`;
+  });
+  sel.innerHTML = html;
+  if (forceCode) sel.value = forceCode;
+}
+
+function runSuggestion() {
+  const material = document.getElementById("f-material").value.trim();
+  const brand = document.getElementById("f-brand").value.trim();
+  const dept = document.getElementById("f-dept").value;
+  const box = document.getElementById("suggest-box");
+
+  if (!material) {
+    box.className = "suggest-box empty";
+    box.innerHTML = "Start typing the material name — a suggested category will appear here.";
+    return;
+  }
+  const s = suggestArn(material, brand, dept);
+  if (!s) {
+    box.className = "suggest-box empty";
+    box.innerHTML = "Pick the ordering department to get a suggestion.";
+    return;
+  }
+  box.className = "suggest-box";
+  box.innerHTML = `
+    <div class="suggest-top">
+      <span class="suggest-code">${s.dept}-${s.subcat}</span>
+      <span class="confidence ${s.confidence}">${s.confidence} confidence</span>
+    </div>
+    <div class="suggest-label">${subcatLabel(s.dept, s.subcat)}</div>
+    <div class="suggest-reason">${s.reason}</div>
+  `;
+  if (document.getElementById("f-dept").value !== s.dept) {
+    document.getElementById("f-dept").value = s.dept;
+    fillEmployeeDropdown("f-dept", "f-requester");
+  }
+  fillSubcatDropdown(`${s.dept}-${s.subcat}`);
+}
+
+document.getElementById("f-material").addEventListener("input", debounce(runSuggestion, 300));
+document.getElementById("f-brand").addEventListener("input", debounce(runSuggestion, 300));
+
+function debounce(fn, wait) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); };
+}
+
+/* ---------- Submit new item for approval ---------- */
+const recentSubmissions = [];
+
+document.getElementById("btn-submit").addEventListener("click", () => {
+  const material = document.getElementById("f-material").value.trim();
+  const brand = document.getElementById("f-brand").value.trim();
+  const grn = document.getElementById("f-grn").value.trim();
+  const qty = document.getElementById("f-qty").value.trim();
+  const requester = document.getElementById("f-requester").value;
+  const subcatVal = document.getElementById("f-subcat").value; // "RD-CH" etc
+  const notes = document.getElementById("f-notes").value.trim();
+  const statusEl = document.getElementById("assign-status");
+
+  if (!material || !grn || !requester || !subcatVal) {
+    statusEl.innerHTML = `<div class="status-msg err">Please fill in Material Name, GRN No., Requested By, and Sub-Category.</div>`;
+    return;
+  }
+  const [dept, subcat] = subcatVal.split("-");
+
+  const payload = {
+    type: "ARN_ASSIGN",
+    material, brand, grn, qty, notes,
+    dept, subcat,
+    requestedBy: requester,
+    submittedAt: new Date().toISOString(),
+  };
+
+  postToBackend(payload)
+    .then(() => {
+      statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.</div>`;
+      recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester });
+      renderRecent();
+      ["f-material","f-brand","f-grn","f-qty","f-notes"].forEach(id => document.getElementById(id).value = "");
+      document.getElementById("suggest-box").className = "suggest-box empty";
+      document.getElementById("suggest-box").innerHTML = "Start typing the material name — a suggested category will appear here.";
+    })
+    .catch(() => {
+      statusEl.innerHTML = `<div class="status-msg err">Couldn't submit — check your connection and try again.</div>`;
+    });
+});
+
+function renderRecent() {
+  const wrap = document.getElementById("recent-list");
+  if (!recentSubmissions.length) { wrap.style.display = "none"; return; }
+  wrap.style.display = "block";
+  wrap.innerHTML = recentSubmissions.map(r => `
+    <div class="recent-item">
+      <span>${r.material}</span>
+      <span style="color:var(--muted)">${r.code} → ${r.requester}</span>
+    </div>
+  `).join("");
+}
+
+/* ---------- Approve tab ---------- */
+document.getElementById("btn-load").addEventListener("click", () => {
+  const person = document.getElementById("a-name").value;
+  const statusEl = document.getElementById("approve-status");
+  const listEl = document.getElementById("pending-list");
+  if (!person) {
+    statusEl.innerHTML = `<div class="status-msg err">Select your name first.</div>`;
+    return;
+  }
+  statusEl.innerHTML = "";
+  listEl.innerHTML = `<div class="empty-state">Loading…</div>`;
+
+  fetchPendingItems(person)
+    .then(items => renderPendingList(items))
+    .catch(() => {
+      listEl.innerHTML = "";
+      statusEl.innerHTML = `<div class="status-msg err">Couldn't load items — check the Web App URL in CONFIG.</div>`;
+    });
+});
+
+function renderPendingList(items) {
+  const listEl = document.getElementById("pending-list");
+  if (!items || !items.length) {
+    listEl.innerHTML = `<div class="empty-state">Nothing pending your approval right now.</div>`;
+    return;
+  }
+  listEl.innerHTML = items.map(item => `
+    <div class="pending-card" data-id="${item.id}">
+      <div class="pending-top">
+        <div>
+          <div class="pending-name">${item.material}</div>
+          <div class="pending-meta">Qty ${item.qty || "—"} · GRN ${item.grn} · ${item.brand ? "Brand: " + item.brand : "No brand given"}</div>
+        </div>
+        <span class="pill">Pending</span>
+      </div>
+      <div class="pending-arn">Proposed: ACH-${item.dept}-${item.subcat} → ${subcatLabel(item.dept, item.subcat)}</div>
+      ${item.notes ? `<div class="pending-meta">Note: ${item.notes}</div>` : ""}
+      <div class="pending-actions">
+        <button class="btn btn-approve" onclick="approveItem('${item.id}', this)">Approve</button>
+        <button class="btn btn-reject" onclick="toggleCorrect('${item.id}')">Send Back</button>
+      </div>
+      <div class="correct-box" id="correct-${item.id}">
+        <label>Correct Sub-Category</label>
+        <select id="correct-select-${item.id}">
+          ${Object.keys(SUBCATS).map(d => `<optgroup label="${DEPT_LABELS[d]}">` +
+            SUBCATS[d].map(s => `<option value="${d}-${s.code}">${s.label} (${d}-${s.code})</option>`).join("") +
+            `</optgroup>`).join("")}
+        </select>
+        <label>Reason</label>
+        <textarea id="correct-reason-${item.id}" placeholder="Why is this the right category?"></textarea>
+        <button class="btn small" onclick="rejectItem('${item.id}', this)">Send Correction</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function toggleCorrect(id) {
+  const box = document.getElementById(`correct-${id}`);
+  box.style.display = box.style.display === "block" ? "none" : "block";
+}
+
+function approveItem(id, btnEl) {
+  btnEl.disabled = true;
+  btnEl.textContent = "Approving…";
+  postToBackend({ type: "ARN_APPROVE", id })
+    .then(() => {
+      const card = document.querySelector(`.pending-card[data-id="${id}"]`);
+      card.innerHTML = `<div class="status-msg ok">Approved — final ARN assigned.</div>`;
+    })
+    .catch(() => {
+      btnEl.disabled = false;
+      btnEl.textContent = "Approve";
+      alert("Couldn't approve — try again.");
+    });
+}
+
+function rejectItem(id, btnEl) {
+  const subcatVal = document.getElementById(`correct-select-${id}`).value;
+  const reason = document.getElementById(`correct-reason-${id}`).value.trim();
+  const [dept, subcat] = subcatVal.split("-");
+  btnEl.disabled = true;
+  btnEl.textContent = "Sending…";
+  postToBackend({ type: "ARN_REJECT", id, correctedDept: dept, correctedSubcat: subcat, reason })
+    .then(() => {
+      const card = document.querySelector(`.pending-card[data-id="${id}"]`);
+      card.innerHTML = `<div class="status-msg err">Sent back to store manager with your correction.</div>`;
+    })
+    .catch(() => {
+      btnEl.disabled = false;
+      btnEl.textContent = "Send Correction";
+      alert("Couldn't send — try again.");
+    });
+}
+
+/* =====================================================================
+   BACKEND CALLS
+   Writes (POST): no-cors + URLSearchParams — matches your existing apps,
+   avoids the CORS-preflight issue that bit the inventory app before.
+   Reads (GET, for the pending list): JSONP via a <script> tag, because
+   a plain cross-origin fetch() can't read the response body from an
+   Apps Script Web App without CORS headers, which Apps Script doesn't send.
+   ===================================================================== */
+function postToBackend(payload) {
+  // Your existing doPost() expects the payload as a JSON string under a
+  // single "data" field (e.parameter.data), not flat fields — matching
+  // how inventory.html / request.html already submit.
+  return fetch(CONFIG.WEBAPP_URL, {
+    method: "POST",
+    mode: "no-cors",
+    body: new URLSearchParams({ data: JSON.stringify(payload) }),
+  });
+}
+
+let jsonpCounter = 0;
+function fetchPendingItems(person) {
+  return new Promise((resolve, reject) => {
+    const cb = "arnCallback" + (jsonpCounter++);
+    const script = document.createElement("script");
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("timeout"));
+    }, 10000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cb];
+      script.remove();
+    }
+    window[cb] = (data) => {
+      cleanup();
+      resolve(data.items || []);
+    };
+    script.onerror = () => { cleanup(); reject(new Error("script load failed")); };
+    script.src = `${CONFIG.WEBAPP_URL}?action=list&person=${encodeURIComponent(person)}&callback=${cb}`;
+    document.body.appendChild(script);
+  });
+}
+</script>
+</body>
+</html>
