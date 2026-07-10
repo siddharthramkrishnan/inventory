@@ -197,6 +197,17 @@
   }
   .status-msg.ok{ background:var(--green-bg); color:var(--green); }
   .status-msg.err{ background:var(--red-bg); color:var(--red); }
+  .final-arn{
+    font-family:'Courier New', monospace;
+    font-size:20px;
+    font-weight:800;
+    letter-spacing:0.3px;
+    margin-top:4px;
+  }
+  .btn.secondary.small{
+    width:100%;
+    margin-top:8px;
+  }
 
   .pending-card{
     border:1px solid var(--line);
@@ -821,16 +832,31 @@ function toggleCorrect(id) {
 function approveItem(id, btnEl) {
   btnEl.disabled = true;
   btnEl.textContent = "Approving…";
-  postToBackend({ type: "ARN_APPROVE", id })
-    .then(() => {
+  approveViaJsonp(id)
+    .then((result) => {
       const card = document.querySelector(`.pending-card[data-id="${id}"]`);
-      card.innerHTML = `<div class="status-msg ok">Approved — final ARN assigned.</div>`;
+      const arn = result && result.arn;
+      card.innerHTML = arn
+        ? `<div class="status-msg ok">
+             <div>Approved</div>
+             <div class="final-arn">${arn}</div>
+           </div>
+           <button class="btn small secondary" onclick="copyArn('${arn}', this)">Copy ARN</button>`
+        : `<div class="status-msg ok">Approved — final ARN assigned.</div>`;
     })
     .catch(() => {
       btnEl.disabled = false;
       btnEl.textContent = "Approve";
       alert("Couldn't approve — try again.");
     });
+}
+
+function copyArn(arn, btnEl) {
+  navigator.clipboard.writeText(arn).then(() => {
+    const original = btnEl.textContent;
+    btnEl.textContent = "Copied!";
+    setTimeout(() => { btnEl.textContent = original; }, 1500);
+  });
 }
 
 function rejectItem(id, btnEl) {
@@ -891,6 +917,30 @@ function fetchPendingItems(person) {
     };
     script.onerror = () => { cleanup(); reject(new Error("script load failed")); };
     script.src = `${CONFIG.WEBAPP_URL}?action=list&person=${encodeURIComponent(person)}&callback=${cb}`;
+    document.body.appendChild(script);
+  });
+}
+
+function approveViaJsonp(id) {
+  return new Promise((resolve, reject) => {
+    const cb = "arnApproveCallback" + (jsonpCounter++);
+    const script = document.createElement("script");
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("timeout"));
+    }, 10000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cb];
+      script.remove();
+    }
+    window[cb] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = () => { cleanup(); reject(new Error("script load failed")); };
+    script.src = `${CONFIG.WEBAPP_URL}?action=approve&id=${encodeURIComponent(id)}&callback=${cb}`;
     document.body.appendChild(script);
   });
 }
