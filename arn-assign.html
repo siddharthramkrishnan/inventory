@@ -328,13 +328,39 @@
 
       <div class="row2">
         <div>
-          <label>Quantity</label>
-          <input type="number" id="f-qty" min="0" placeholder="e.g. 10">
+          <label>Quantity &amp; Unit</label>
+          <div style="display:flex; gap:8px;">
+            <input type="number" id="f-qty" min="0" placeholder="Qty" style="flex:1; width:auto;">
+            <select id="f-unit" style="flex:1; width:auto;">
+              <option value="">Unit…</option>
+              <option value="mg">mg</option>
+              <option value="g">g</option>
+              <option value="kg">kg</option>
+              <option value="ug">µg (ug)</option>
+              <option value="ml">ml</option>
+              <option value="ul">µl (ul)</option>
+              <option value="l">l</option>
+              <option value="No">No. (count)</option>
+              <option value="Test">Test</option>
+              <option value="box">box</option>
+              <option value="pack">pack</option>
+              <option value="roll">roll</option>
+              <option value="set">set</option>
+              <option value="m">m</option>
+              <option value="cm">cm</option>
+              <option value="other">Other…</option>
+            </select>
+          </div>
         </div>
         <div>
           <label class="req">GRN No.</label>
           <input type="text" id="f-grn" placeholder="e.g. GR/DD/45">
         </div>
+      </div>
+
+      <div id="unit-other-wrap" style="display:none;">
+        <label>Custom Unit</label>
+        <input type="text" id="f-unit-other" placeholder="e.g. vial, bottle, cartridge">
       </div>
 
       <label class="req">Requested By</label>
@@ -653,6 +679,17 @@ document.getElementById("f-dept").addEventListener("change", () => {
 });
 document.getElementById("a-dept").addEventListener("change", () => fillEmployeeDropdown("a-dept", "a-name"));
 
+document.getElementById("f-unit").addEventListener("change", () => {
+  const isOther = document.getElementById("f-unit").value === "other";
+  document.getElementById("unit-other-wrap").style.display = isOther ? "block" : "none";
+});
+
+function getSelectedUnit() {
+  const val = document.getElementById("f-unit").value;
+  if (val === "other") return document.getElementById("f-unit-other").value.trim();
+  return val;
+}
+
 function fillSubcatDropdown(forceCode) {
   const dept = document.getElementById("f-dept").value;
   const sel = document.getElementById("f-subcat");
@@ -737,6 +774,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
   const payload = {
     type: "ARN_ASSIGN",
     material, brand, grn, qty, notes,
+    unit: getSelectedUnit(),
     dept, subcat,
     requestedBy: requester,
     submittedAt: new Date().toISOString(),
@@ -747,7 +785,9 @@ document.getElementById("btn-submit").addEventListener("click", () => {
       statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.</div>`;
       recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester });
       renderRecent();
-      ["f-material","f-brand","f-grn","f-qty","f-notes"].forEach(id => document.getElementById(id).value = "");
+      ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other"].forEach(id => document.getElementById(id).value = "");
+      document.getElementById("f-unit").value = "";
+      document.getElementById("unit-other-wrap").style.display = "none";
       document.getElementById("suggest-box").className = "suggest-box empty";
       document.getElementById("suggest-box").innerHTML = "Start typing the material name — a suggested category will appear here.";
     })
@@ -799,7 +839,7 @@ function renderPendingList(items) {
       <div class="pending-top">
         <div>
           <div class="pending-name">${item.material}</div>
-          <div class="pending-meta">Qty ${item.qty || "—"} · GRN ${item.grn} · ${item.brand ? "Brand: " + item.brand : "No brand given"}</div>
+          <div class="pending-meta">Qty ${item.qty || "—"}${item.unit ? " " + item.unit : ""} · GRN ${item.grn} · ${item.brand ? "Brand: " + item.brand : "No brand given"}</div>
         </div>
         <span class="pill">Pending</span>
       </div>
