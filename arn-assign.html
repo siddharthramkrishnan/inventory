@@ -689,10 +689,10 @@ function runSuggestion() {
     <div class="suggest-label">${subcatLabel(s.dept, s.subcat)}</div>
     <div class="suggest-reason">${s.reason}</div>
   `;
-  if (document.getElementById("f-dept").value !== s.dept) {
-    document.getElementById("f-dept").value = s.dept;
-    fillEmployeeDropdown("f-dept", "f-requester");
-  }
+  // NOTE: intentionally does NOT touch f-dept. "Dept That Ordered It" is
+  // information the store manager enters (who placed the order) — it is
+  // separate from the suggested ARN classification and must never be
+  // overwritten by the suggestion engine, even if they differ.
   fillSubcatDropdown(`${s.dept}-${s.subcat}`);
 }
 
