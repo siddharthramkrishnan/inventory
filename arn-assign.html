@@ -430,6 +430,25 @@
       <div id="personal-vendor-wrap" style="display:none;">
         <label class="req">Vendor / Shop Name</label>
         <input type="text" id="f-personal-vendor" placeholder="Who was this bought from?">
+
+        <div class="row2">
+          <div>
+            <label class="req">Amount Paid (₹)</label>
+            <input type="number" id="f-personal-amount" min="0" step="0.01" placeholder="Total paid">
+          </div>
+          <div>
+            <label>Bill / Invoice No.</label>
+            <input type="text" id="f-personal-bill" placeholder="If the bill has one">
+          </div>
+        </div>
+
+        <label class="req">Paid By <span style="font-weight:400;text-transform:none;color:var(--muted)">(who to reimburse)</span></label>
+        <select id="f-personal-paidby">
+          <option value="">Select…</option>
+        </select>
+        <div class="hint">
+          Accounts uses these details to process the reimbursement — please keep the physical bill safe.
+        </div>
       </div>
 
       <div id="unit-other-wrap" style="display:none;">
@@ -758,13 +777,25 @@ document.getElementById("f-unit").addEventListener("change", () => {
   document.getElementById("unit-other-wrap").style.display = isOther ? "block" : "none";
 });
 
+// "Paid By" can be anyone in the company — the person who spent their own
+// money isn't necessarily the person who requested the item.
+(function populatePaidBy() {
+  const sel = document.getElementById("f-personal-paidby");
+  const everyone = [...new Set([...EMPLOYEES.RD, ...EMPLOYEES.MF, ...EMPLOYEES.GN])].sort();
+  sel.innerHTML = `<option value="">Select…</option>` +
+    everyone.map(n => `<option value="${n}">${n}</option>`).join("");
+})();
+
 document.getElementById("f-personal-purchase").addEventListener("change", () => {
   const isPersonal = document.getElementById("f-personal-purchase").checked;
   const grnInput = document.getElementById("f-grn");
   const grnLabel = document.getElementById("f-grn-label");
   document.getElementById("prn-note").style.display = isPersonal ? "block" : "none";
   document.getElementById("personal-vendor-wrap").style.display = isPersonal ? "block" : "none";
-  if (!isPersonal) document.getElementById("f-personal-vendor").value = "";
+  if (!isPersonal) {
+    ["f-personal-vendor", "f-personal-amount", "f-personal-bill", "f-personal-paidby"]
+      .forEach(id => document.getElementById(id).value = "");
+  }
   grnInput.disabled = isPersonal;
   grnInput.placeholder = isPersonal ? "Auto-generated on submit" : "e.g. GR/DD/45";
   grnInput.value = "";
@@ -930,6 +961,9 @@ document.getElementById("btn-submit").addEventListener("click", () => {
   const isPersonalPurchase = document.getElementById("f-personal-purchase").checked;
   const grn = document.getElementById("f-grn").value.trim();
   const personalVendor = document.getElementById("f-personal-vendor").value.trim();
+  const personalAmount = document.getElementById("f-personal-amount").value.trim();
+  const personalBill = document.getElementById("f-personal-bill").value.trim();
+  const personalPaidBy = document.getElementById("f-personal-paidby").value;
   const qty = document.getElementById("f-qty").value.trim();
   const requester = document.getElementById("f-requester").value;
   const subcatVal = document.getElementById("f-subcat").value; // "RD-CH" etc
@@ -940,8 +974,12 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     statusEl.innerHTML = `<div class="status-msg err">Please fill in Material Name, GRN No. (or check "personal purchase"), Requested By, and Sub-Category.</div>`;
     return;
   }
-  if (isPersonalPurchase && !personalVendor) {
-    statusEl.innerHTML = `<div class="status-msg err">Please fill in Vendor / Shop Name \u2014 Finance needs this to process the reimbursement.</div>`;
+  if (isPersonalPurchase && (!personalVendor || !personalAmount || !personalPaidBy)) {
+    statusEl.innerHTML = `<div class="status-msg err">For personal purchases, please fill in Vendor / Shop Name, Amount Paid, and Paid By \u2014 Accounts needs these to process the reimbursement.</div>`;
+    return;
+  }
+  if (isPersonalPurchase && Number(personalAmount) <= 0) {
+    statusEl.innerHTML = `<div class="status-msg err">Amount Paid must be greater than zero.</div>`;
     return;
   }
 
@@ -962,6 +1000,9 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     unit: getSelectedUnit(),
     isPersonalPurchase,
     personalVendor,
+    personalAmount,
+    personalBill,
+    personalPaidBy,
     duplicateAcknowledged,
     dept, subcat,
     requestedBy: requester,
@@ -995,7 +1036,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
       statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.${prnNote}</div>`;
       recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester, grn: result.grn });
       renderRecent();
-      ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other","f-personal-vendor"].forEach(id => document.getElementById(id).value = "");
+      ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other","f-personal-vendor","f-personal-amount","f-personal-bill","f-personal-paidby"].forEach(id => document.getElementById(id).value = "");
       document.getElementById("f-unit").value = "";
       document.getElementById("unit-other-wrap").style.display = "none";
       document.getElementById("f-personal-purchase").checked = false;
@@ -1065,6 +1106,7 @@ function renderPendingList(items) {
         <span class="pill">Pending</span>
       </div>
       <div class="pending-arn">Proposed: ACH-${item.dept}-${item.subcat} → ${subcatLabel(item.dept, item.subcat)}</div>
+      ${item.grnStatus === "Provisional" && item.amountPaid ? `<div class="pending-meta" style="color:var(--amber); margin-top:4px;">Reimbursement pending: ₹${item.amountPaid}${item.paidBy ? " to " + item.paidBy : ""}</div>` : ""}
       ${item.notes ? `<div class="pending-meta">Note: ${item.notes}</div>` : ""}
       <div class="pending-actions">
         <button class="btn btn-approve" onclick="approveItem('${item.id}', this)">Approve</button>
