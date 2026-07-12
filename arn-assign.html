@@ -895,7 +895,7 @@ function renderPendingList(items) {
       <div class="pending-top">
         <div>
           <div class="pending-name">${item.material}</div>
-          <div class="pending-meta">Qty ${item.qty || "—"}${item.unit ? " " + item.unit : ""} · ${item.grnStatus === "Provisional" ? `<span style="color:var(--amber); font-weight:700;">PROVISIONAL ${item.grn}</span> (no real GRN yet)` : "GRN " + item.grn} · ${item.brand ? "Brand: " + item.brand : "No brand given"}</div>
+          <div class="pending-meta">Qty ${item.qty || "—"}${item.unit ? " " + item.unit : ""} · ${item.grnStatus === "Provisional" ? `<span style="color:var(--amber); font-weight:700;">PROVISIONAL ${item.grn}</span> (no real GRN yet)` : "GRN " + item.grn} · ${item.brand ? "Brand: " + item.brand : "No brand given"}${item.vendor ? " · Vendor: " + item.vendor : ""}</div>
         </div>
         <span class="pill">Pending</span>
       </div>
