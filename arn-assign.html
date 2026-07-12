@@ -870,15 +870,22 @@ function toggleCorrect(id) {
 }
 
 function approveItem(id, btnEl) {
+  const person = document.getElementById("a-name").value;
   btnEl.disabled = true;
   btnEl.textContent = "Approving…";
-  approveViaJsonp(id)
+  approveViaJsonp(id, person)
     .then((result) => {
+      if (result.status === "error") {
+        btnEl.disabled = false;
+        btnEl.textContent = "Approve";
+        alert(result.message || "Couldn't approve this item.");
+        return;
+      }
       const card = document.querySelector(`.pending-card[data-id="${id}"]`);
-      const arn = result && result.arn;
+      const arn = result.arn;
       card.innerHTML = arn
         ? `<div class="status-msg ok">
-             <div>Approved</div>
+             <div>${result.alreadyApproved ? "Already approved earlier" : "Approved"}</div>
              <div class="final-arn">${arn}</div>
            </div>
            <button class="btn small secondary" onclick="copyArn('${arn}', this)">Copy ARN</button>`
@@ -900,13 +907,20 @@ function copyArn(arn, btnEl) {
 }
 
 function rejectItem(id, btnEl) {
+  const person = document.getElementById("a-name").value;
   const subcatVal = document.getElementById(`correct-select-${id}`).value;
   const reason = document.getElementById(`correct-reason-${id}`).value.trim();
   const [dept, subcat] = subcatVal.split("-");
   btnEl.disabled = true;
   btnEl.textContent = "Sending…";
-  postToBackend({ type: "ARN_REJECT", id, correctedDept: dept, correctedSubcat: subcat, reason })
-    .then(() => {
+  rejectViaJsonp(id, person, dept, subcat, reason)
+    .then((result) => {
+      if (result.status === "error") {
+        btnEl.disabled = false;
+        btnEl.textContent = "Send Correction";
+        alert(result.message || "Couldn't send this correction.");
+        return;
+      }
       const card = document.querySelector(`.pending-card[data-id="${id}"]`);
       card.innerHTML = `<div class="status-msg err">Sent back to store manager with your correction.</div>`;
     })
@@ -961,7 +975,7 @@ function fetchPendingItems(person) {
   });
 }
 
-function approveViaJsonp(id) {
+function approveViaJsonp(id, person) {
   return new Promise((resolve, reject) => {
     const cb = "arnApproveCallback" + (jsonpCounter++);
     const script = document.createElement("script");
@@ -980,7 +994,37 @@ function approveViaJsonp(id) {
       resolve(data);
     };
     script.onerror = () => { cleanup(); reject(new Error("script load failed")); };
-    script.src = `${CONFIG.WEBAPP_URL}?action=approve&id=${encodeURIComponent(id)}&callback=${cb}`;
+    const params = new URLSearchParams({ action: "approve", id, person: person || "", callback: cb });
+    script.src = `${CONFIG.WEBAPP_URL}?${params.toString()}`;
+    document.body.appendChild(script);
+  });
+}
+
+function rejectViaJsonp(id, person, correctedDept, correctedSubcat, reason) {
+  return new Promise((resolve, reject) => {
+    const cb = "arnRejectCallback" + (jsonpCounter++);
+    const script = document.createElement("script");
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("timeout"));
+    }, 10000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cb];
+      script.remove();
+    }
+    window[cb] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = () => { cleanup(); reject(new Error("script load failed")); };
+    const params = new URLSearchParams({
+      action: "reject", id, person: person || "",
+      correctedDept: correctedDept || "", correctedSubcat: correctedSubcat || "",
+      reason: reason || "", callback: cb,
+    });
+    script.src = `${CONFIG.WEBAPP_URL}?${params.toString()}`;
     document.body.appendChild(script);
   });
 }
