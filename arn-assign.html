@@ -138,6 +138,51 @@
     width:auto;
     margin:0;
   }
+  .dup-box{
+    border:1.5px solid var(--amber);
+    background:var(--amber-bg);
+    border-radius:8px;
+    padding:14px;
+    margin-bottom:14px;
+  }
+  .dup-title{
+    font-size:13.5px;
+    font-weight:700;
+    color:var(--amber);
+    margin-bottom:8px;
+  }
+  .dup-match{
+    background:#fff;
+    border:1px solid #eddcbc;
+    border-radius:6px;
+    padding:9px 10px;
+    margin-bottom:7px;
+    font-size:12.5px;
+  }
+  .dup-match-arn{
+    font-family:'Courier New', monospace;
+    font-weight:700;
+    color:var(--accent-dark);
+    font-size:13px;
+  }
+  .dup-match-meta{
+    color:var(--muted);
+    font-size:11.5px;
+    margin-top:2px;
+  }
+  .dup-ack{
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink);
+    text-transform:none;
+    letter-spacing:0;
+    margin:10px 0 0;
+    cursor:pointer;
+  }
+  .dup-ack input{ width:auto; margin:2px 0 0; }
 
   .suggest-box{
     border:1.5px dashed var(--accent);
@@ -335,6 +380,8 @@
       <div id="suggest-box" class="suggest-box empty">
         Start typing the material name — a suggested category will appear here.
       </div>
+
+      <div id="dup-warning" class="dup-box" style="display:none;"></div>
 
       <label>Sub-Category <span style="font-weight:400;text-transform:none;color:var(--muted)">(auto-filled — change if it looks wrong)</span></label>
       <select id="f-subcat">
@@ -786,6 +833,88 @@ function runSuggestion() {
 
 document.getElementById("f-material").addEventListener("input", debounce(runSuggestion, 300));
 document.getElementById("f-brand").addEventListener("input", debounce(runSuggestion, 300));
+document.getElementById("f-material").addEventListener("input", debounce(runDuplicateCheck, 600));
+document.getElementById("f-brand").addEventListener("input", debounce(runDuplicateCheck, 600));
+
+// Tracks the matches currently shown, so submit can tell whether the
+// acknowledgement tickbox is required.
+let currentDuplicates = [];
+
+function runDuplicateCheck() {
+  const material = document.getElementById("f-material").value.trim();
+  const brand = document.getElementById("f-brand").value.trim();
+  const box = document.getElementById("dup-warning");
+
+  // Too short to be meaningful — don't nag on every keystroke.
+  if (material.length < 4) {
+    currentDuplicates = [];
+    box.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+
+  dupCheckViaJsonp(material, brand)
+    .then((result) => {
+      // Guard against a stale response landing after the user has typed on.
+      if (document.getElementById("f-material").value.trim() !== material) return;
+      currentDuplicates = (result && result.matches) || [];
+      renderDuplicateWarning();
+    })
+    .catch(() => {
+      // A failed check must never block a legitimate submission.
+      currentDuplicates = [];
+      box.style.display = "none";
+    });
+}
+
+function renderDuplicateWarning() {
+  const box = document.getElementById("dup-warning");
+  if (!currentDuplicates.length) {
+    box.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+
+  const cards = currentDuplicates.map(m => {
+    if (m.source === "master") {
+      const inactive = String(m.itemStatus || "").toLowerCase() === "inactive";
+      return `
+        <div class="dup-match">
+          <div class="dup-match-arn">${m.arn}</div>
+          <div>${m.material}</div>
+          <div class="dup-match-meta">
+            ${m.brand ? "Brand: " + m.brand : "No brand recorded"}
+            ${m.stock !== "" && m.stock != null ? " · Stock: " + m.stock + (m.unit ? " " + m.unit : "") : ""}
+            ${inactive ? ' · <strong style="color:var(--red)">INACTIVE</strong>' : ""}
+            ${!m.brandConfirmed ? " · brand not confirmed" : ""}
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="dup-match">
+        <div class="dup-match-arn" style="color:var(--amber)">AWAITING APPROVAL</div>
+        <div>${m.material}</div>
+        <div class="dup-match-meta">
+          Already submitted${m.requestedBy ? " for " + m.requestedBy : ""}${m.grn ? " · " + m.grn : ""}
+          ${m.brand ? " · Brand: " + m.brand : ""}
+        </div>
+      </div>`;
+  }).join("");
+
+  const n = currentDuplicates.length;
+  box.innerHTML = `
+    <div class="dup-title">Possible duplicate — ${n} similar item${n > 1 ? "s" : ""} found</div>
+    <div style="font-size:12.5px; color:var(--muted); margin-bottom:9px;">
+      If this is a restock of an existing item, don't create a new ARN — use the existing one below.
+    </div>
+    ${cards}
+    <label class="dup-ack">
+      <input type="checkbox" id="f-dup-ack">
+      <span>I've checked — this is genuinely a different item and needs its own ARN.</span>
+    </label>
+  `;
+  box.style.display = "block";
+}
 
 function debounce(fn, wait) {
   let t;
@@ -815,6 +944,16 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     statusEl.innerHTML = `<div class="status-msg err">Please fill in Vendor / Shop Name \u2014 Finance needs this to process the reimbursement.</div>`;
     return;
   }
+
+  // If we surfaced possible duplicates, the store manager must consciously
+  // confirm this is a different item before we'll mint a second ARN.
+  const dupAckEl = document.getElementById("f-dup-ack");
+  const duplicateAcknowledged = !!(dupAckEl && dupAckEl.checked);
+  if (currentDuplicates.length > 0 && !duplicateAcknowledged) {
+    statusEl.innerHTML = `<div class="status-msg err">This item may already exist. Review the matches above, then tick the box to confirm it's genuinely different.</div>`;
+    return;
+  }
+
   const [dept, subcat] = subcatVal.split("-");
 
   const payload = {
@@ -823,6 +962,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     unit: getSelectedUnit(),
     isPersonalPurchase,
     personalVendor,
+    duplicateAcknowledged,
     dept, subcat,
     requestedBy: requester,
     submittedAt: new Date().toISOString(),
@@ -837,6 +977,15 @@ document.getElementById("btn-submit").addEventListener("click", () => {
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Approval";
       if (result.status === "error") {
+        // The server found duplicates the client hadn't seen — e.g. someone
+        // else submitted the same item in the seconds since we last checked.
+        if (result.needsDuplicateAck) {
+          currentDuplicates = result.matches || [];
+          renderDuplicateWarning();
+          statusEl.innerHTML = `<div class="status-msg err">This item may already exist. Review the matches above, then tick the box to confirm it's genuinely different.</div>`;
+          document.getElementById("dup-warning").scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
         statusEl.innerHTML = `<div class="status-msg err">${result.message || "Couldn't submit — try again."}</div>`;
         return;
       }
@@ -852,6 +1001,9 @@ document.getElementById("btn-submit").addEventListener("click", () => {
       document.getElementById("f-personal-purchase").checked = false;
       document.getElementById("prn-note").style.display = "none";
       document.getElementById("personal-vendor-wrap").style.display = "none";
+      currentDuplicates = [];
+      document.getElementById("dup-warning").style.display = "none";
+      document.getElementById("dup-warning").innerHTML = "";
       document.getElementById("f-grn").disabled = false;
       document.getElementById("f-grn").placeholder = "e.g. GR/DD/45";
       document.getElementById("f-grn-label").classList.add("req");
@@ -1016,6 +1168,27 @@ function postToBackend(payload) {
     method: "POST",
     mode: "no-cors",
     body: new URLSearchParams({ data: JSON.stringify(payload) }),
+  });
+}
+
+function dupCheckViaJsonp(material, brand) {
+  return new Promise((resolve, reject) => {
+    const cb = "arnDupCallback" + (jsonpCounter++);
+    const script = document.createElement("script");
+    const timeout = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, 10000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cb];
+      script.remove();
+    }
+    window[cb] = (data) => { cleanup(); resolve(data); };
+    script.onerror = () => { cleanup(); reject(new Error("script load failed")); };
+    const params = new URLSearchParams({
+      action: "dupcheck", material, brand: brand || "", callback: cb,
+    });
+    script.src = `${CONFIG.WEBAPP_URL}?${params.toString()}`;
+    document.body.appendChild(script);
   });
 }
 
