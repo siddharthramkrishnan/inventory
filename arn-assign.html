@@ -380,6 +380,10 @@
       <div id="prn-note" class="hint" style="display:none;">
         A provisional reference (PRN) will be generated automatically — write it on the item until Finance issues the real GRN.
       </div>
+      <div id="personal-vendor-wrap" style="display:none;">
+        <label class="req">Vendor / Shop Name</label>
+        <input type="text" id="f-personal-vendor" placeholder="Who was this bought from?">
+      </div>
 
       <div id="unit-other-wrap" style="display:none;">
         <label>Custom Unit</label>
@@ -712,6 +716,8 @@ document.getElementById("f-personal-purchase").addEventListener("change", () => 
   const grnInput = document.getElementById("f-grn");
   const grnLabel = document.getElementById("f-grn-label");
   document.getElementById("prn-note").style.display = isPersonal ? "block" : "none";
+  document.getElementById("personal-vendor-wrap").style.display = isPersonal ? "block" : "none";
+  if (!isPersonal) document.getElementById("f-personal-vendor").value = "";
   grnInput.disabled = isPersonal;
   grnInput.placeholder = isPersonal ? "Auto-generated on submit" : "e.g. GR/DD/45";
   grnInput.value = "";
@@ -794,6 +800,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
   const brand = document.getElementById("f-brand").value.trim();
   const isPersonalPurchase = document.getElementById("f-personal-purchase").checked;
   const grn = document.getElementById("f-grn").value.trim();
+  const personalVendor = document.getElementById("f-personal-vendor").value.trim();
   const qty = document.getElementById("f-qty").value.trim();
   const requester = document.getElementById("f-requester").value;
   const subcatVal = document.getElementById("f-subcat").value; // "RD-CH" etc
@@ -804,6 +811,10 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     statusEl.innerHTML = `<div class="status-msg err">Please fill in Material Name, GRN No. (or check "personal purchase"), Requested By, and Sub-Category.</div>`;
     return;
   }
+  if (isPersonalPurchase && !personalVendor) {
+    statusEl.innerHTML = `<div class="status-msg err">Please fill in Vendor / Shop Name \u2014 Finance needs this to process the reimbursement.</div>`;
+    return;
+  }
   const [dept, subcat] = subcatVal.split("-");
 
   const payload = {
@@ -811,6 +822,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     material, brand, grn, qty, notes,
     unit: getSelectedUnit(),
     isPersonalPurchase,
+    personalVendor,
     dept, subcat,
     requestedBy: requester,
     submittedAt: new Date().toISOString(),
@@ -834,11 +846,12 @@ document.getElementById("btn-submit").addEventListener("click", () => {
       statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.${prnNote}</div>`;
       recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester, grn: result.grn });
       renderRecent();
-      ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other"].forEach(id => document.getElementById(id).value = "");
+      ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other","f-personal-vendor"].forEach(id => document.getElementById(id).value = "");
       document.getElementById("f-unit").value = "";
       document.getElementById("unit-other-wrap").style.display = "none";
       document.getElementById("f-personal-purchase").checked = false;
       document.getElementById("prn-note").style.display = "none";
+      document.getElementById("personal-vendor-wrap").style.display = "none";
       document.getElementById("f-grn").disabled = false;
       document.getElementById("f-grn").placeholder = "e.g. GR/DD/45";
       document.getElementById("f-grn-label").classList.add("req");
