@@ -461,8 +461,23 @@
         <option value="">Select department above first…</option>
       </select>
 
-      <label>Notes (optional)</label>
-      <textarea id="f-notes" placeholder="Anything the approver should know"></textarea>
+      <label>Procurement Request No. <span style="font-weight:400;text-transform:none;color:var(--muted)">(optional — from the Company Procurement Request sheet)</span></label>
+      <div style="display:flex; gap:8px;">
+        <select id="f-req-tab" style="flex:1; width:auto;">
+          <option value="">Tab…</option>
+          <option value="Common">Common</option>
+          <option value="R&D">R &amp; D</option>
+          <option value="Platform">Platform</option>
+          <option value="MFG">MFG</option>
+          <option value="Admin">Admin</option>
+        </select>
+        <input type="number" id="f-req-no" min="1" placeholder="e.g. 1102" style="flex:1; width:auto;">
+      </div>
+      <div class="hint">
+        Links this item back to who requested it and why. Leave blank if there's no request row.
+      </div>
+
+      <label>Notes (optional)</label>      <textarea id="f-notes" placeholder="Anything the approver should know"></textarea>
 
       <div id="assign-status"></div>
       <button class="btn" id="btn-submit">Submit for Approval</button>
@@ -992,6 +1007,18 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     return;
   }
 
+  const reqTab = document.getElementById("f-req-tab").value;
+  const reqNo = document.getElementById("f-req-no").value.trim();
+
+  // The number alone isn't unique — each tab of the Procurement Request sheet
+  // has its own sequence (Common is around 442 while R&D is around 1102), so
+  // only tab + number identifies a request. Accept both, or neither.
+  if ((reqTab && !reqNo) || (!reqTab && reqNo)) {
+    statusEl.innerHTML = `<div class="status-msg err">For the Procurement Request No., pick the tab <em>and</em> enter the number \u2014 the number on its own isn't unique across tabs.</div>`;
+    return;
+  }
+  const procurementRef = reqTab && reqNo ? `${reqTab}-${reqNo}` : "";
+
   const [dept, subcat] = subcatVal.split("-");
 
   const payload = {
@@ -1003,6 +1030,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     personalAmount,
     personalBill,
     personalPaidBy,
+    procurementRef,
     duplicateAcknowledged,
     dept, subcat,
     requestedBy: requester,
@@ -1031,12 +1059,12 @@ document.getElementById("btn-submit").addEventListener("click", () => {
         return;
       }
       const prnNote = result.grnStatus === "Provisional"
-        ? ` Provisional reference: <strong>${result.grn}</strong> — write this on the item until Finance issues the real GRN.`
+        ? ` Provisional reference: <strong>${result.grn}</strong> — write this on the item, and on this purchase's row in the Procurement Request sheet.`
         : "";
       statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.${prnNote}</div>`;
       recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester, grn: result.grn });
       renderRecent();
-      ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other","f-personal-vendor","f-personal-amount","f-personal-bill","f-personal-paidby"].forEach(id => document.getElementById(id).value = "");
+      ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other","f-personal-vendor","f-personal-amount","f-personal-bill","f-personal-paidby","f-req-tab","f-req-no"].forEach(id => document.getElementById(id).value = "");
       document.getElementById("f-unit").value = "";
       document.getElementById("unit-other-wrap").style.display = "none";
       document.getElementById("f-personal-purchase").checked = false;
