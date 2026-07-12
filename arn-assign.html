@@ -123,6 +123,21 @@
     color:var(--muted);
     margin:-10px 0 14px;
   }
+  .checkbox-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    text-transform:none;
+    font-weight:500;
+    font-size:13px;
+    color:var(--ink);
+    margin:-6px 0 12px;
+    cursor:pointer;
+  }
+  .checkbox-row input{
+    width:auto;
+    margin:0;
+  }
 
   .suggest-box{
     border:1.5px dashed var(--accent);
@@ -353,9 +368,17 @@
           </div>
         </div>
         <div>
-          <label class="req">GRN No.</label>
+          <label class="req" id="f-grn-label">GRN No.</label>
           <input type="text" id="f-grn" placeholder="e.g. GR/DD/45">
         </div>
+      </div>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="f-personal-purchase">
+        This is a personal purchase — no GRN yet (reimbursement in progress)
+      </label>
+      <div id="prn-note" class="hint" style="display:none;">
+        A provisional reference (PRN) will be generated automatically — write it on the item until Finance issues the real GRN.
       </div>
 
       <div id="unit-other-wrap" style="display:none;">
@@ -684,6 +707,17 @@ document.getElementById("f-unit").addEventListener("change", () => {
   document.getElementById("unit-other-wrap").style.display = isOther ? "block" : "none";
 });
 
+document.getElementById("f-personal-purchase").addEventListener("change", () => {
+  const isPersonal = document.getElementById("f-personal-purchase").checked;
+  const grnInput = document.getElementById("f-grn");
+  const grnLabel = document.getElementById("f-grn-label");
+  document.getElementById("prn-note").style.display = isPersonal ? "block" : "none";
+  grnInput.disabled = isPersonal;
+  grnInput.placeholder = isPersonal ? "Auto-generated on submit" : "e.g. GR/DD/45";
+  grnInput.value = "";
+  grnLabel.classList.toggle("req", !isPersonal);
+});
+
 function getSelectedUnit() {
   const val = document.getElementById("f-unit").value;
   if (val === "other") return document.getElementById("f-unit-other").value.trim();
@@ -758,6 +792,7 @@ const recentSubmissions = [];
 document.getElementById("btn-submit").addEventListener("click", () => {
   const material = document.getElementById("f-material").value.trim();
   const brand = document.getElementById("f-brand").value.trim();
+  const isPersonalPurchase = document.getElementById("f-personal-purchase").checked;
   const grn = document.getElementById("f-grn").value.trim();
   const qty = document.getElementById("f-qty").value.trim();
   const requester = document.getElementById("f-requester").value;
@@ -765,8 +800,8 @@ document.getElementById("btn-submit").addEventListener("click", () => {
   const notes = document.getElementById("f-notes").value.trim();
   const statusEl = document.getElementById("assign-status");
 
-  if (!material || !grn || !requester || !subcatVal) {
-    statusEl.innerHTML = `<div class="status-msg err">Please fill in Material Name, GRN No., Requested By, and Sub-Category.</div>`;
+  if (!material || (!isPersonalPurchase && !grn) || !requester || !subcatVal) {
+    statusEl.innerHTML = `<div class="status-msg err">Please fill in Material Name, GRN No. (or check "personal purchase"), Requested By, and Sub-Category.</div>`;
     return;
   }
   const [dept, subcat] = subcatVal.split("-");
@@ -775,23 +810,44 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     type: "ARN_ASSIGN",
     material, brand, grn, qty, notes,
     unit: getSelectedUnit(),
+    isPersonalPurchase,
     dept, subcat,
     requestedBy: requester,
     submittedAt: new Date().toISOString(),
   };
 
-  postToBackend(payload)
-    .then(() => {
-      statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.</div>`;
-      recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester });
+  const submitBtn = document.getElementById("btn-submit");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Submitting…";
+
+  assignViaJsonp(payload)
+    .then((result) => {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit for Approval";
+      if (result.status === "error") {
+        statusEl.innerHTML = `<div class="status-msg err">${result.message || "Couldn't submit — try again."}</div>`;
+        return;
+      }
+      const prnNote = result.grnStatus === "Provisional"
+        ? ` Provisional reference: <strong>${result.grn}</strong> — write this on the item until Finance issues the real GRN.`
+        : "";
+      statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.${prnNote}</div>`;
+      recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester, grn: result.grn });
       renderRecent();
       ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other"].forEach(id => document.getElementById(id).value = "");
       document.getElementById("f-unit").value = "";
       document.getElementById("unit-other-wrap").style.display = "none";
+      document.getElementById("f-personal-purchase").checked = false;
+      document.getElementById("prn-note").style.display = "none";
+      document.getElementById("f-grn").disabled = false;
+      document.getElementById("f-grn").placeholder = "e.g. GR/DD/45";
+      document.getElementById("f-grn-label").classList.add("req");
       document.getElementById("suggest-box").className = "suggest-box empty";
       document.getElementById("suggest-box").innerHTML = "Start typing the material name — a suggested category will appear here.";
     })
     .catch(() => {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit for Approval";
       statusEl.innerHTML = `<div class="status-msg err">Couldn't submit — check your connection and try again.</div>`;
     });
 });
@@ -803,7 +859,7 @@ function renderRecent() {
   wrap.innerHTML = recentSubmissions.map(r => `
     <div class="recent-item">
       <span>${r.material}</span>
-      <span style="color:var(--muted)">${r.code} → ${r.requester}</span>
+      <span style="color:var(--muted)">${r.code} → ${r.requester}${r.grn ? " · " + r.grn : ""}</span>
     </div>
   `).join("");
 }
@@ -839,7 +895,7 @@ function renderPendingList(items) {
       <div class="pending-top">
         <div>
           <div class="pending-name">${item.material}</div>
-          <div class="pending-meta">Qty ${item.qty || "—"}${item.unit ? " " + item.unit : ""} · GRN ${item.grn} · ${item.brand ? "Brand: " + item.brand : "No brand given"}</div>
+          <div class="pending-meta">Qty ${item.qty || "—"}${item.unit ? " " + item.unit : ""} · ${item.grnStatus === "Provisional" ? `<span style="color:var(--amber); font-weight:700;">PROVISIONAL ${item.grn}</span> (no real GRN yet)` : "GRN " + item.grn} · ${item.brand ? "Brand: " + item.brand : "No brand given"}</div>
         </div>
         <span class="pill">Pending</span>
       </div>
@@ -947,6 +1003,31 @@ function postToBackend(payload) {
     method: "POST",
     mode: "no-cors",
     body: new URLSearchParams({ data: JSON.stringify(payload) }),
+  });
+}
+
+function assignViaJsonp(payload) {
+  return new Promise((resolve, reject) => {
+    const cb = "arnAssignCallback" + (jsonpCounter++);
+    const script = document.createElement("script");
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("timeout"));
+    }, 10000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cb];
+      script.remove();
+    }
+    window[cb] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = () => { cleanup(); reject(new Error("script load failed")); };
+    const params = new URLSearchParams({ action: "assign", data: JSON.stringify(payload), callback: cb });
+    script.src = `${CONFIG.WEBAPP_URL}?${params.toString()}`;
+    document.body.appendChild(script);
   });
 }
 
