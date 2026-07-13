@@ -388,6 +388,20 @@
           </div>
         </div>
 
+        <!-- RESTOCK RECIPIENT — shown only when Inward is selected. Pre-filled from the
+             GRN register's own "Issued To" column when available, but always editable —
+             the store manager confirms or corrects it, never blindly trusts the suggestion. -->
+        <div class="issue-fields" id="restockFields">
+          <div class="issue-header">📦 Restock Recipient</div>
+          <div class="field" style="margin-bottom:0">
+            <label class="label">Issued To <span class="req">*</span>
+              <span class="hint" id="restockHint">Who this stock is for</span>
+            </label>
+            <input type="text" id="restockIssuedTo" placeholder="e.g. Sudarshan Hegde">
+          </div>
+        </div>
+
+
         <div class="qty-row">
           <div class="field">
             <label class="label">Quantity <span class="req">*</span>
@@ -406,7 +420,7 @@
 
         <div class="field">
           <label class="label">GRN No. <span class="req">*</span></label>
-          <input type="text" id="batchNo" placeholder="e.g. GR/DD/45 or GR/BM/012">
+          <input type="text" id="batchNo" placeholder="e.g. GR/DD/45 or GR/BM/012" onblur="lookupGrnForRestock()">
         </div>
 
         <div class="field">
@@ -512,12 +526,51 @@ function onTypeChange() {
   const issueFields = document.getElementById('issueFields');
   issueFields.classList.toggle('show', t === 'Issue');
 
+  // show/hide restock recipient field
+  const restockFields = document.getElementById('restockFields');
+  restockFields.classList.toggle('show', t === 'Inward');
+
   // auto-set effect
   if (['Inward','Transfer In','Recount'].includes(t)) {
     setEffect('add');
   } else if (['Damage','Return','Transfer Out','Write-Off','Issue'].includes(t)) {
     setEffect('deduct');
   }
+}
+
+// ── GRN LOOKUP (for Inward restock recipient suggestion) ──────────────────────
+// JSONP, same pattern as the ARN app's other lookups — a plain fetch() can't
+// read a cross-origin Apps Script response without CORS headers.
+function lookupGrnForRestock() {
+  const adjType = document.getElementById('adjType').value;
+  const grn = document.getElementById('batchNo').value.trim();
+  if (adjType !== 'Inward' || !grn) return;
+
+  const callbackName = 'grnLookupCb_' + Date.now();
+  const hint = document.getElementById('restockHint');
+  hint.textContent = 'Checking GRN register…';
+
+  window[callbackName] = function(result) {
+    delete window[callbackName];
+    document.body.removeChild(script);
+    if (result && result.found && result.issuedTo) {
+      // Pre-fill only if the store manager hasn't already typed something in.
+      const field = document.getElementById('restockIssuedTo');
+      if (!field.value.trim()) field.value = result.issuedTo;
+      hint.textContent = 'Suggested from GRN register — edit if needed';
+    } else {
+      hint.textContent = 'Who this stock is for';
+    }
+  };
+
+  const script = document.createElement('script');
+  script.src = APPS_SCRIPT_URL + '?action=grnlookup&grn=' + encodeURIComponent(grn) + '&callback=' + callbackName;
+  script.onerror = function() {
+    delete window[callbackName];
+    if (document.body.contains(script)) document.body.removeChild(script);
+    hint.textContent = 'Who this stock is for';
+  };
+  document.body.appendChild(script);
 }
 
 // ── SEARCH ────────────────────────────────────────────────────────────────────
@@ -649,11 +702,13 @@ async function submitAdjustment() {
   const manager   = document.getElementById('managerName').value;
   const issuedTo  = document.getElementById('issuedTo').value.trim();
   const issuedPrj = document.getElementById('issuedProject').value.trim();
+  const restockTo = document.getElementById('restockIssuedTo').value.trim();
 
   if (!selectedItem)             { showToast('Please select an item', true); return; }
   if (!adjType)                  { showToast('Please select adjustment type', true); return; }
   if (adjType === 'Issue' && !issuedTo)  { showToast('Please enter who the item is issued to', true); return; }
   if (adjType === 'Issue' && !issuedPrj) { showToast('Please enter the project / purpose', true); return; }
+  if (adjType === 'Inward' && !restockTo) { showToast('Please enter who this restocked item is for', true); return; }
   if (!qty || qty <= 0)          { showToast('Please enter a valid quantity', true); return; }
   if (!currentEffect)            { showToast('Please select Add or Deduct', true); return; }
   if (!document.getElementById('batchNo').value.trim()) { showToast('Please enter the GRN No.', true); return; }
@@ -682,7 +737,7 @@ async function submitAdjustment() {
     effect:        currentEffect === 'add' ? '+Add' : '-Deduct',
     grnNo:         document.getElementById('batchNo').value.trim(),
     reason,
-    issuedTo:      adjType === 'Issue' ? issuedTo  : '',
+    issuedTo:      adjType === 'Issue' ? issuedTo : (adjType === 'Inward' ? restockTo : ''),
     issuedProject: adjType === 'Issue' ? issuedPrj : '',
     managerName:   manager,
     tallySync:     'Not Synced',
@@ -752,9 +807,11 @@ function resetForm() {
   document.getElementById('formScreen').style.display = 'block';
   document.getElementById('successScreen').classList.remove('show');
   clearItem();
-  ['adjType','qty','batchNo','reason','managerName','warehouse','issuedTo','issuedProject']
+  ['adjType','qty','batchNo','reason','managerName','warehouse','issuedTo','issuedProject','restockIssuedTo']
     .forEach(id => document.getElementById(id).value = '');
   document.getElementById('issueFields').classList.remove('show');
+  document.getElementById('restockFields').classList.remove('show');
+  document.getElementById('restockHint').textContent = 'Who this stock is for';
   const btn = document.getElementById('submitBtn');
   btn.disabled = false; btn.classList.remove('loading');
   btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12l5 5L19 7"/></svg>Submit Adjustment';
