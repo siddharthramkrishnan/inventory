@@ -393,11 +393,21 @@
              the store manager confirms or corrects it, never blindly trusts the suggestion. -->
         <div class="issue-fields" id="restockFields">
           <div class="issue-header">📦 Restock Recipient</div>
-          <div class="field" style="margin-bottom:0">
+          <div class="field">
             <label class="label">Issued To <span class="req">*</span>
               <span class="hint" id="restockHint">Who this stock is for</span>
             </label>
             <input type="text" id="restockIssuedTo" placeholder="e.g. Sudarshan Hegde">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label class="label">Expiry Date <span class="req">*</span>
+              <span class="hint">From the batch/lot label</span>
+            </label>
+            <input type="date" id="expiryDate">
+            <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:13px;color:var(--text-mid)">
+              <input type="checkbox" id="noExpiry" onchange="toggleNoExpiry()" style="width:auto">
+              This item has no expiry (e.g. hardware / consumable)
+            </label>
           </div>
         </div>
 
@@ -694,6 +704,14 @@ function setEffect(e) {
   document.getElementById('btnDeduct').classList.toggle('active', e==='deduct');
 }
 
+// ── NO EXPIRY TOGGLE ────────────────────────────────────────────────────────────
+function toggleNoExpiry() {
+  const checked = document.getElementById('noExpiry').checked;
+  const dateField = document.getElementById('expiryDate');
+  dateField.disabled = checked;
+  if (checked) dateField.value = '';
+}
+
 // ── SUBMIT ────────────────────────────────────────────────────────────────────
 async function submitAdjustment() {
   const adjType   = document.getElementById('adjType').value;
@@ -703,12 +721,15 @@ async function submitAdjustment() {
   const issuedTo  = document.getElementById('issuedTo').value.trim();
   const issuedPrj = document.getElementById('issuedProject').value.trim();
   const restockTo = document.getElementById('restockIssuedTo').value.trim();
+  const noExpiry  = document.getElementById('noExpiry').checked;
+  const expiry    = document.getElementById('expiryDate').value;
 
   if (!selectedItem)             { showToast('Please select an item', true); return; }
   if (!adjType)                  { showToast('Please select adjustment type', true); return; }
   if (adjType === 'Issue' && !issuedTo)  { showToast('Please enter who the item is issued to', true); return; }
   if (adjType === 'Issue' && !issuedPrj) { showToast('Please enter the project / purpose', true); return; }
   if (adjType === 'Inward' && !restockTo) { showToast('Please enter who this restocked item is for', true); return; }
+  if (adjType === 'Inward' && !noExpiry && !expiry) { showToast('Please enter the expiry date, or tick "No expiry"', true); return; }
   if (!qty || qty <= 0)          { showToast('Please enter a valid quantity', true); return; }
   if (!currentEffect)            { showToast('Please select Add or Deduct', true); return; }
   if (!document.getElementById('batchNo').value.trim()) { showToast('Please enter the GRN No.', true); return; }
@@ -739,6 +760,7 @@ async function submitAdjustment() {
     reason,
     issuedTo:      adjType === 'Issue' ? issuedTo : (adjType === 'Inward' ? restockTo : ''),
     issuedProject: adjType === 'Issue' ? issuedPrj : '',
+    expiryDate:    adjType === 'Inward' ? (noExpiry ? 'No Expiry' : expiry) : '',
     managerName:   manager,
     tallySync:     'Not Synced',
   };
@@ -791,6 +813,14 @@ function showSuccess(p) {
       <span class="lbl">Project</span><span class="val">${p.issuedProject}</span>
     </div>` : '';
 
+  const restockRows = p.adjType === 'Inward' ? `
+    <div class="success-detail-row">
+      <span class="lbl">Issued To</span><span class="val">${p.issuedTo || '—'}</span>
+    </div>
+    <div class="success-detail-row">
+      <span class="lbl">Expiry Date</span><span class="val">${p.expiryDate || '—'}</span>
+    </div>` : '';
+
   document.getElementById('successDetail').innerHTML = `
     <div class="success-detail-row"><span class="lbl">ARN</span><span class="val" style="font-family:monospace">${p.arn}</span></div>
     <div class="success-detail-row"><span class="lbl">Item</span><span class="val">${p.itemName}</span></div>
@@ -798,6 +828,7 @@ function showSuccess(p) {
     <div class="success-detail-row"><span class="lbl">GRN No.</span><span class="val">${p.grnNo || p.batchNo || "—"}</span></div>
     <div class="success-detail-row"><span class="lbl">Quantity</span><span class="val">${effLabel} ${p.quantity} ${p.unit||''}</span></div>
     ${issueRows}
+    ${restockRows}
     <div class="success-detail-row"><span class="lbl">Logged by</span><span class="val">${p.managerName}</span></div>
     <div class="success-detail-row"><span class="lbl">Time</span><span class="val">${p.date} · ${p.time}</span></div>
   `;
@@ -807,8 +838,10 @@ function resetForm() {
   document.getElementById('formScreen').style.display = 'block';
   document.getElementById('successScreen').classList.remove('show');
   clearItem();
-  ['adjType','qty','batchNo','reason','managerName','warehouse','issuedTo','issuedProject','restockIssuedTo']
+  ['adjType','qty','batchNo','reason','managerName','warehouse','issuedTo','issuedProject','restockIssuedTo','expiryDate']
     .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('noExpiry').checked = false;
+  document.getElementById('expiryDate').disabled = false;
   document.getElementById('issueFields').classList.remove('show');
   document.getElementById('restockFields').classList.remove('show');
   document.getElementById('restockHint').textContent = 'Who this stock is for';
