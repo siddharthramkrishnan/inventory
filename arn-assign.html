@@ -424,6 +424,11 @@
         Log the GRN in the GRN sheet <strong>first</strong> — this is checked against Procurement's register, so it won't be found if it hasn't been entered there yet.
       </div>
 
+      <div>
+        <label>Store Location</label>
+        <input type="text" id="f-location" placeholder="e.g. Room Temperature R_D Section, 2-8 Fridge">
+      </div>
+
       <label class="checkbox-row">
         <input type="checkbox" id="f-personal-purchase">
         This is a personal purchase — no GRN yet (reimbursement in progress)
@@ -984,6 +989,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
   const personalBill = document.getElementById("f-personal-bill").value.trim();
   const personalPaidBy = document.getElementById("f-personal-paidby").value;
   const qty = document.getElementById("f-qty").value.trim();
+  const location = document.getElementById("f-location").value.trim();
   const requester = document.getElementById("f-requester").value;
   const subcatVal = document.getElementById("f-subcat").value; // "RD-CH" etc
   const notes = document.getElementById("f-notes").value.trim();
@@ -1027,7 +1033,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
 
   const payload = {
     type: "ARN_ASSIGN",
-    material, brand, grn, qty, notes,
+    material, brand, grn, qty, notes, location,
     unit: getSelectedUnit(),
     isPersonalPurchase,
     personalVendor,
@@ -1069,7 +1075,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
       statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.${prnNote}</div>`;
       recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester, grn: result.grn });
       renderRecent();
-      ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other","f-personal-vendor","f-personal-amount","f-personal-bill","f-personal-paidby","f-req-tab","f-req-no"].forEach(id => document.getElementById(id).value = "");
+      ["f-material","f-brand","f-grn","f-qty","f-notes","f-location","f-unit-other","f-personal-vendor","f-personal-amount","f-personal-bill","f-personal-paidby","f-req-tab","f-req-no"].forEach(id => document.getElementById(id).value = "");
       document.getElementById("f-unit").value = "";
       document.getElementById("unit-other-wrap").style.display = "none";
       document.getElementById("f-personal-purchase").checked = false;
