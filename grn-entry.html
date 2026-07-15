@@ -255,29 +255,6 @@
       </div>
     </div>
 
-    <div class="card">
-      <p class="section-title">Zoho / Notification</p>
-      <div class="field">
-        <label>Remarks for Zoho Entry</label>
-        <input type="text" id="f-zoho-remarks" list="zohoRemarksList" placeholder="e.g. Inward, Not Entered, Inward/Knock Off">
-        <datalist id="zohoRemarksList">
-          <option value="Inward">
-          <option value="Inward/Knock Off">
-          <option value="Not Entered">
-          <option value="Entered">
-          <option value="No PO Raised">
-        </datalist>
-      </div>
-      <div class="field">
-        <label>Zoho Entry By</label>
-        <input type="text" id="f-zoho-entry-by" list="employeeList" placeholder="Start typing a name…">
-      </div>
-      <div class="field checkbox-field">
-        <input type="checkbox" id="f-notification-sent">
-        <label for="f-notification-sent">Notification Sent</label>
-      </div>
-    </div>
-
     <datalist id="employeeList"></datalist>
 
     <button type="submit" class="submit" id="submitBtn">Submit GRN</button>
@@ -403,9 +380,6 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     receivedBy: document.getElementById('f-received-by').value.trim(),
     issuedTo: document.getElementById('f-issued-to').value.trim(),
     receiptAcknowledged: document.getElementById('f-receipt-ack').checked ? 'Yes' : '',
-    zohoRemarks: document.getElementById('f-zoho-remarks').value.trim(),
-    zohoEntryBy: document.getElementById('f-zoho-entry-by').value.trim(),
-    notificationSent: document.getElementById('f-notification-sent').checked ? 'Yes' : '',
     expDate: document.getElementById('f-exp-date').value,
     basicAmount: document.getElementById('f-basic-amount').value.trim(),
     otherCharges: document.getElementById('f-other-charges').value.trim(),
