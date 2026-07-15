@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRN Entry · Achira Labs</title>
+<style>
+  :root{
+    --ink:#16211f;
+    --paper:#f6f7f5;
+    --card:#ffffff;
+    --accent:#1f5f52;
+    --accent-dark:#153f37;
+    --line:#dde3e0;
+    --muted:#5c6b67;
+    --amber:#a5690c;
+    --amber-bg:#fdf3e2;
+    --green:#1e7a44;
+    --green-bg:#e7f5ec;
+    --red:#b3312c;
+    --red-bg:#fbe9e8;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-tap-highlight-color:transparent;
+  }
+  header{
+    background:var(--accent-dark);
+    color:#fff;
+    padding:22px 18px 20px;
+  }
+  header h1{ margin:0; font-size:19px; font-weight:700; letter-spacing:0.2px; }
+  header p{ margin:4px 0 0; font-size:13px; color:#cfe0da; }
+  .wrap{ max-width:640px; margin:0 auto; padding:16px 14px 60px; }
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .section-title{
+    font-size:13px;
+    font-weight:700;
+    color:var(--accent-dark);
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    margin:0 0 12px;
+  }
+  .field{ margin-bottom:14px; }
+  .field:last-child{ margin-bottom:0; }
+  label{
+    display:block;
+    font-size:13px;
+    font-weight:600;
+    margin-bottom:5px;
+    color:var(--ink);
+  }
+  .req{ color:var(--red); }
+  .hint{ font-weight:400; color:var(--muted); font-size:12px; margin-left:4px; }
+  input[type="text"], input[type="number"], input[type="date"], select, textarea{
+    width:100%;
+    padding:10px 11px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:14px;
+    font-family:inherit;
+    background:#fff;
+    color:var(--ink);
+  }
+  input:focus, select:focus, textarea:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .suggest-btn{
+    font-size:12px;
+    color:var(--accent);
+    background:none;
+    border:none;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:0;
+    margin-top:4px;
+  }
+  .checkbox-field{ display:flex; align-items:center; gap:8px; }
+  .checkbox-field input{ width:auto; }
+  .checkbox-field label{ margin:0; font-weight:500; }
+  button.submit{
+    width:100%;
+    padding:14px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  button.submit:disabled{ opacity:0.6; cursor:default; }
+  .msg{
+    padding:12px 14px;
+    border-radius:8px;
+    font-size:13px;
+    margin-bottom:16px;
+    display:none;
+  }
+  .msg.success{ background:var(--green-bg); color:var(--green); display:block; }
+  .msg.error{ background:var(--red-bg); color:var(--red); display:block; }
+  datalist{}
+</style>
+</head>
+<body>
+<header>
+  <h1>📋 GRN Entry</h1>
+  <p>Achira Labs · Goods Receipt Note</p>
+</header>
+
+<div class="wrap">
+  <div id="msg" class="msg"></div>
+
+  <form id="grnForm">
+    <div class="card">
+      <p class="section-title">Category</p>
+      <div class="field">
+        <label>GRN Category / Tab <span class="req">*</span>
+          <span class="hint">Determines which sheet tab this GRN is logged in</span>
+        </label>
+        <select id="f-tab" required>
+          <option value="">Loading categories…</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="section-title">Receipt Details</p>
+      <div class="field">
+        <label>Received Date <span class="req">*</span></label>
+        <input type="date" id="f-received-date" required>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Invoice No.</label>
+          <input type="text" id="f-invoice-no">
+        </div>
+        <div class="field">
+          <label>Invoice Date</label>
+          <input type="date" id="f-invoice-date">
+        </div>
+      </div>
+      <div class="field">
+        <label>PO No. <span class="hint">Procurement Request reference, if any</span></label>
+        <input type="text" id="f-po-no" placeholder="e.g. ACHIRA/24-25/165">
+      </div>
+      <div class="field">
+        <label>Requested By</label>
+        <input type="text" id="f-requested-by" list="employeeList" placeholder="Start typing a name…">
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="section-title">GRN Identifiers</p>
+      <div class="row2">
+        <div class="field">
+          <label>Sl No.</label>
+          <input type="text" id="f-sl-no" placeholder="Auto-suggested">
+        </div>
+        <div class="field">
+          <label>Inward Entry No.</label>
+          <input type="text" id="f-inward-entry-no">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>GRN Prefix</label>
+          <select id="f-grn-prefix">
+            <option value="GR/DD/">GR/DD/</option>
+            <option value="GR/CC/">GR/CC/</option>
+            <option value="GR/MM/">GR/MM/</option>
+            <option value="GR/CG/">GR/CG/</option>
+            <option value="GR/SE/">GR/SE/</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>GRN No. <span class="req">*</span></label>
+          <input type="text" id="f-grn-no" required placeholder="Auto-suggested">
+        </div>
+      </div>
+      <button type="button" class="suggest-btn" id="suggestBtn">↻ Re-suggest Sl No. / GRN No. for this category + prefix</button>
+      <div class="field" style="margin-top:12px">
+        <label>Catalogue / Lot No.</label>
+        <input type="text" id="f-catalogue-lot-no">
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="section-title">Material</p>
+      <div class="field">
+        <label>Name of the Party <span class="hint">Vendor</span></label>
+        <input type="text" id="f-party-name">
+      </div>
+      <div class="field">
+        <label>Description of Material <span class="req">*</span></label>
+        <textarea id="f-material-description" rows="2" required></textarea>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Quantity</label>
+          <input type="text" id="f-quantity" placeholder="e.g. 100 or 20L">
+        </div>
+        <div class="field">
+          <label>Invoice Amount</label>
+          <input type="text" id="f-invoice-amount" placeholder="e.g. 4500.00 or USD 300">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Basic Amount</label>
+          <input type="text" id="f-basic-amount">
+        </div>
+        <div class="field">
+          <label>Other Charges</label>
+          <input type="text" id="f-other-charges">
+        </div>
+      </div>
+      <div class="field">
+        <label>GST</label>
+        <input type="text" id="f-gst">
+      </div>
+      <div class="field">
+        <label>Expiry Date <span class="hint">Batch/lot expiry, if applicable</span></label>
+        <input type="date" id="f-exp-date">
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="section-title">Handling</p>
+      <div class="field">
+        <label>Received By</label>
+        <input type="text" id="f-received-by" list="employeeList" placeholder="Start typing a name…">
+      </div>
+      <div class="field">
+        <label>Issued To</label>
+        <input type="text" id="f-issued-to" list="employeeList" placeholder="Start typing a name…">
+      </div>
+      <div class="field checkbox-field">
+        <input type="checkbox" id="f-receipt-ack">
+        <label for="f-receipt-ack">Receipt Acknowledged</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="section-title">Zoho / Notification</p>
+      <div class="field">
+        <label>Remarks for Zoho Entry</label>
+        <input type="text" id="f-zoho-remarks" list="zohoRemarksList" placeholder="e.g. Inward, Not Entered, Inward/Knock Off">
+        <datalist id="zohoRemarksList">
+          <option value="Inward">
+          <option value="Inward/Knock Off">
+          <option value="Not Entered">
+          <option value="Entered">
+          <option value="No PO Raised">
+        </datalist>
+      </div>
+      <div class="field">
+        <label>Zoho Entry By</label>
+        <input type="text" id="f-zoho-entry-by" list="employeeList" placeholder="Start typing a name…">
+      </div>
+      <div class="field checkbox-field">
+        <input type="checkbox" id="f-notification-sent">
+        <label for="f-notification-sent">Notification Sent</label>
+      </div>
+    </div>
+
+    <datalist id="employeeList"></datalist>
+
+    <button type="submit" class="submit" id="submitBtn">Submit GRN</button>
+  </form>
+</div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec';
+
+function jsonp(action, params) {
+  return new Promise(function(resolve) {
+    const callbackName = 'cb_' + action + '_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    let qs = 'action=' + action + '&callback=' + callbackName;
+    for (const k in params) {
+      qs += '&' + k + '=' + encodeURIComponent(params[k]);
+    }
+    window[callbackName] = function(result) {
+      delete window[callbackName];
+      document.body.removeChild(script);
+      resolve(result);
+    };
+    const script = document.createElement('script');
+    script.src = APPS_SCRIPT_URL + '?' + qs;
+    script.onerror = function() {
+      delete window[callbackName];
+      if (document.body.contains(script)) document.body.removeChild(script);
+      resolve(null);
+    };
+    document.body.appendChild(script);
+  });
+}
+
+function showMsg(text, type) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg ' + type;
+}
+
+// Load GRN category tabs into the dropdown.
+async function loadTabs() {
+  const select = document.getElementById('f-tab');
+  const result = await jsonp('grntabs', {});
+  select.innerHTML = '';
+  if (result && result.status === 'success' && result.tabs.length) {
+    result.tabs.forEach(function(tab) {
+      const opt = document.createElement('option');
+      opt.value = tab;
+      opt.textContent = tab;
+      select.appendChild(opt);
+    });
+    refreshSuggestions();
+  } else {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Could not load categories — try reloading';
+    select.appendChild(opt);
+  }
+}
+
+// Load employee names for the Issued To / Received By / Requested By /
+// Zoho Entry By suggestions — same shared list used by the Inventory
+// Adjustment app.
+async function loadEmployees() {
+  const result = await jsonp('employees', {});
+  if (result && result.status === 'success' && Array.isArray(result.employees)) {
+    const datalist = document.getElementById('employeeList');
+    datalist.innerHTML = '';
+    result.employees.forEach(function(name) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      datalist.appendChild(opt);
+    });
+  }
+}
+
+// Re-fetch the suggested Sl No. and GRN No. for the currently selected
+// tab + prefix. Never overwrites a value the person has already typed
+// unless they explicitly click the re-suggest link, or the fields are
+// still empty (e.g. right after selecting a new tab/prefix).
+async function refreshSuggestions(force) {
+  const tab = document.getElementById('f-tab').value;
+  const prefix = document.getElementById('f-grn-prefix').value;
+  if (!tab) return;
+  const result = await jsonp('grnsuggest', { tabName: tab, prefix: prefix });
+  if (result && result.status === 'success') {
+    const slField = document.getElementById('f-sl-no');
+    const grnField = document.getElementById('f-grn-no');
+    if (force || !slField.value) slField.value = result.suggestion.slNo || '';
+    if (force || !grnField.value) grnField.value = result.suggestion.grnNo || '';
+  }
+}
+
+document.getElementById('f-tab').addEventListener('change', function() { refreshSuggestions(true); });
+document.getElementById('f-grn-prefix').addEventListener('change', function() { refreshSuggestions(true); });
+document.getElementById('suggestBtn').addEventListener('click', function() { refreshSuggestions(true); });
+
+loadTabs();
+loadEmployees();
+
+document.getElementById('grnForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Submitting…';
+  showMsg('', '');
+  document.getElementById('msg').className = 'msg';
+
+  const data = {
+    tabName: document.getElementById('f-tab').value,
+    slNo: document.getElementById('f-sl-no').value.trim(),
+    receivedDate: document.getElementById('f-received-date').value,
+    invoiceNo: document.getElementById('f-invoice-no').value.trim(),
+    invoiceDate: document.getElementById('f-invoice-date').value,
+    poNo: document.getElementById('f-po-no').value.trim(),
+    requestedBy: document.getElementById('f-requested-by').value.trim(),
+    inwardEntryNo: document.getElementById('f-inward-entry-no').value.trim(),
+    catalogueLotNo: document.getElementById('f-catalogue-lot-no').value.trim(),
+    grnNo: document.getElementById('f-grn-no').value.trim(),
+    partyName: document.getElementById('f-party-name').value.trim(),
+    materialDescription: document.getElementById('f-material-description').value.trim(),
+    quantity: document.getElementById('f-quantity').value.trim(),
+    invoiceAmount: document.getElementById('f-invoice-amount').value.trim(),
+    receivedBy: document.getElementById('f-received-by').value.trim(),
+    issuedTo: document.getElementById('f-issued-to').value.trim(),
+    receiptAcknowledged: document.getElementById('f-receipt-ack').checked ? 'Yes' : '',
+    zohoRemarks: document.getElementById('f-zoho-remarks').value.trim(),
+    zohoEntryBy: document.getElementById('f-zoho-entry-by').value.trim(),
+    notificationSent: document.getElementById('f-notification-sent').checked ? 'Yes' : '',
+    expDate: document.getElementById('f-exp-date').value,
+    basicAmount: document.getElementById('f-basic-amount').value.trim(),
+    otherCharges: document.getElementById('f-other-charges').value.trim(),
+    gst: document.getElementById('f-gst').value.trim(),
+  };
+
+  const result = await jsonp('grncreate', { data: JSON.stringify(data) });
+
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Submit GRN';
+
+  if (result && result.status === 'success') {
+    showMsg('✅ GRN ' + result.grnNo + ' logged in "' + result.tabName + '".', 'success');
+    document.getElementById('grnForm').reset();
+    refreshSuggestions(true);
+  } else {
+    showMsg('❌ ' + ((result && result.message) || 'Something went wrong — please check the sheet directly before retrying.'), 'error');
+  }
+});
+</script>
+</body>
+</html>
