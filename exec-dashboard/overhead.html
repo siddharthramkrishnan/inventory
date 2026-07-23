@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Achira Labs — Overhead Dashboard</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f4f5f7;
+    min-height: 100vh;
+    padding: 20px;
+    color: #1a1a1a;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+
+  /* --- Sign-in gate --- */
+  #gate {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    padding: 48px 40px;
+    max-width: 420px;
+    margin: 80px auto;
+    text-align: center;
+  }
+  #gate h1 { font-size: 20px; margin-bottom: 8px; }
+  #gate p.sub { font-size: 13px; color: #777; margin-bottom: 24px; }
+  #signin-area { display: flex; justify-content: center; }
+  #gate-error {
+    margin-top: 18px;
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #fdecea;
+    color: #c0392b;
+    border: 1px solid #f5c6c1;
+    display: none;
+  }
+
+  /* --- Dashboard --- */
+  #dashboard { display: none; }
+  header.dash-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header.dash-header h1 { font-size: 22px; }
+  header.dash-header p.sub { font-size: 13px; color: #777; margin-top: 4px; }
+  #viewer-info { font-size: 12px; color: #999; text-align: right; }
+  #signout-link {
+    display: block;
+    margin-top: 4px;
+    color: #4a6fa5;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .kpi-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e5e5e5;
+    padding: 16px 18px;
+  }
+  .kpi-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .kpi-value { font-size: 22px; font-weight: 600; color: #1a1a1a; }
+  .kpi-note { font-size: 11px; color: #aaa; margin-top: 4px; }
+
+  .panel {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e5e5e5;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 15px; margin-bottom: 14px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #888; font-weight: 500; font-size: 11px; text-transform: uppercase; padding: 8px 6px; border-bottom: 1px solid #eee; }
+  td { padding: 8px 6px; border-bottom: 1px solid #f2f2f2; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.total-row td { font-weight: 600; border-top: 2px solid #ddd; border-bottom: none; }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 700px) {
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+  .chart-box { position: relative; height: 280px; }
+
+  .badge-progress {
+    display: inline-block;
+    font-size: 10px;
+    color: #b45309;
+    background: #fef3c7;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+  }
+  .legend-row {
+    display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 8px;
+    font-size: 12px; color: #666;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  #load-error {
+    background: #fdecea;
+    color: #c0392b;
+    border: 1px solid #f5c6c1;
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 13px;
+    display: none;
+  }
+  #loading { text-align: center; color: #999; padding: 60px 0; font-size: 14px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div id="gate">
+    <h1>Achira Labs — Overhead Dashboard</h1>
+    <p class="sub">Sign in with your Achira Google account to continue.</p>
+    <div id="signin-area"></div>
+    <div id="gate-error"></div>
+  </div>
+
+  <div id="dashboard">
+    <header class="dash-header">
+      <div>
+        <h1>Overhead Cost Dashboard</h1>
+        <p class="sub" id="period-sub"></p>
+      </div>
+      <div id="viewer-info">
+        <span id="viewer-email"></span>
+        <span id="signout-link">Sign out</span>
+      </div>
+    </header>
+
+    <div id="loading">Loading data…</div>
+    <div id="load-error"></div>
+
+    <div id="content" style="display:none;">
+      <div class="kpi-grid" id="kpi-grid"></div>
+
+      <div class="panel">
+        <h2>Category breakdown</h2>
+        <table id="category-table"></table>
+      </div>
+
+      <div class="charts-grid">
+        <div class="panel">
+          <h2>Overhead by category, by month</h2>
+          <div class="legend-row" id="bar-legend"></div>
+          <div class="chart-box"><canvas id="barChart" role="img" aria-label="Stacked bar chart of overhead by category across months"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2>Share of total overhead</h2>
+          <div class="legend-row" id="pie-legend"></div>
+          <div class="chart-box"><canvas id="pieChart" role="img" aria-label="Donut chart of category share of total overhead"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Top 5 individual cost lines (YTD)</h2>
+        <table id="top-ledger-table"></table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ==== CONFIG ====
+  const GOOGLE_CLIENT_ID = "889842955597-3dhg863542gbmplueorgavm30korhr89.apps.googleusercontent.com";
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec";
+
+  const CHART_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#4a3aa7"];
+
+  function formatINR(n) {
+    if (n === null || n === undefined || isNaN(n)) return "-";
+    return "\u20b9" + Math.round(n).toLocaleString("en-IN");
+  }
+  function formatPct(n) {
+    if (n === null || n === undefined || isNaN(n)) return "-";
+    return (n * 100).toFixed(1) + "%";
+  }
+
+  function showGateError(msg) {
+    const el = document.getElementById('gate-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function handleCredentialResponse(response) {
+    fetchOverheadData(response.credential);
+  }
+
+  function fetchOverheadData(token) {
+    document.getElementById('gate-error').style.display = 'none';
+    const callbackName = 'overheadCallback_' + Date.now();
+    window[callbackName] = function (data) {
+      delete window[callbackName];
+      script.remove();
+      if (data.status !== 'success') {
+        showGateError(data.message || 'Could not load dashboard. Please try again.');
+        return;
+      }
+      renderDashboard(data);
+    };
+    const script = document.createElement('script');
+    script.src = APPS_SCRIPT_URL + '?action=overhead'
+      + '&token=' + encodeURIComponent(token)
+      + '&callback=' + callbackName;
+    script.onerror = function () {
+      delete window[callbackName];
+      showGateError('Could not reach the dashboard service. Check your connection and try again.');
+    };
+    document.body.appendChild(script);
+  }
+
+  function renderDashboard(data) {
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('viewer-email').textContent = data.viewer || '';
+
+    const months = data.months;
+    const firstLabel = months[0] ? months[0].label : '';
+    const lastLabel = months[months.length - 1] ? months[months.length - 1].label : '';
+    document.getElementById('period-sub').textContent =
+      firstLabel + ' to ' + lastLabel
+      + (data.kpis.currentMonthLabel ? ' (current month in progress, excluded from averages)' : '');
+
+    renderKPIs(data.kpis);
+    renderCategoryTable(data.categories, data.kpis.totalYTD);
+    renderTopLedgerTable(data.topLedgers);
+    renderBarChart(data.categories, months);
+    renderPieChart(data.categories);
+  }
+
+  function renderKPIs(kpis) {
+    const grid = document.getElementById('kpi-grid');
+    const cards = [
+      { label: 'Total overhead YTD', value: formatINR(kpis.totalYTD), note: '' },
+      { label: 'Avg monthly run-rate', value: formatINR(kpis.avgMonthlyRunRate), note: 'Excludes current month' },
+      { label: 'Projected FY total', value: formatINR(kpis.projectedFYTotal), note: 'Run-rate x 12' },
+      { label: 'Largest category', value: kpis.largestCategory, note: '' },
+    ];
+    grid.innerHTML = cards.map(function (c) {
+      return '<div class="kpi-card"><div class="kpi-label">' + c.label + '</div>'
+        + '<div class="kpi-value">' + c.value + '</div>'
+        + (c.note ? '<div class="kpi-note">' + c.note + '</div>' : '')
+        + '</div>';
+    }).join('');
+  }
+
+  function renderCategoryTable(categories, totalYTD) {
+    const table = document.getElementById('category-table');
+    let html = '<tr><th>Category</th><th class="num">Total (INR)</th><th class="num">% of total</th><th class="num">Avg/month*</th></tr>';
+    categories.forEach(function (c) {
+      html += '<tr><td>' + c.name + '</td>'
+        + '<td class="num">' + formatINR(c.total) + '</td>'
+        + '<td class="num">' + formatPct(c.pctOfTotal) + '</td>'
+        + '<td class="num">' + formatINR(c.avgPerMonthExclCurrent) + '</td></tr>';
+    });
+    html += '<tr class="total-row"><td>Total overhead</td>'
+      + '<td class="num">' + formatINR(totalYTD) + '</td>'
+      + '<td class="num">100.0%</td><td class="num"></td></tr>';
+    table.innerHTML = html;
+  }
+
+  function renderTopLedgerTable(ledgers) {
+    const table = document.getElementById('top-ledger-table');
+    let html = '<tr><th>Ledger</th><th class="num">Total (INR)</th></tr>';
+    ledgers.forEach(function (l) {
+      html += '<tr><td>' + l.ledger + '</td><td class="num">' + formatINR(l.total) + '</td></tr>';
+    });
+    table.innerHTML = html;
+  }
+
+  function renderBarChart(categories, months) {
+    const legend = document.getElementById('bar-legend');
+    legend.innerHTML = categories.map(function (c, i) {
+      return '<span class="legend-item"><span class="legend-dot" style="background:' + CHART_COLORS[i % CHART_COLORS.length] + '"></span>' + c.name + '</span>';
+    }).join('');
+
+    const labels = months.map(function (m) { return m.label + (m.isCurrent ? ' (in progress)' : ''); });
+    const datasets = categories.map(function (c, i) {
+      return {
+        label: c.name,
+        data: c.monthly,
+        backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+        borderRadius: 3,
+      };
+    });
+
+    new Chart(document.getElementById('barChart'), {
+      type: 'bar',
+      data: { labels: labels, datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, grid: { display: false } },
+          y: { stacked: true, ticks: { callback: function (v) { return formatINR(v); } }, grid: { color: '#e1e0d9' } },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + ': ' + formatINR(ctx.raw); } } },
+        },
+      },
+    });
+  }
+
+  function renderPieChart(categories) {
+    const legend = document.getElementById('pie-legend');
+    legend.innerHTML = categories.map(function (c, i) {
+      return '<span class="legend-item"><span class="legend-dot" style="background:' + CHART_COLORS[i % CHART_COLORS.length] + '"></span>' + c.name + ' ' + formatPct(c.pctOfTotal) + '</span>';
+    }).join('');
+
+    new Chart(document.getElementById('pieChart'), {
+      type: 'doughnut',
+      data: {
+        labels: categories.map(function (c) { return c.name; }),
+        datasets: [{
+          data: categories.map(function (c) { return c.total; }),
+          backgroundColor: categories.map(function (_, i) { return CHART_COLORS[i % CHART_COLORS.length]; }),
+          borderWidth: 2,
+          borderColor: '#fff',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '62%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function (ctx) { return ctx.label + ': ' + formatINR(ctx.raw); } } },
+        },
+      },
+    });
+  }
+
+  window.onload = function () {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('signin-area'),
+      { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill' }
+    );
+
+    document.getElementById('signout-link').addEventListener('click', function () {
+      google.accounts.id.disableAutoSelect();
+      location.reload();
+    });
+  };
+</script>
+
+</body>
+</html>
