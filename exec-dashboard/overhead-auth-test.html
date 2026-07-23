@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Exec Dashboard — Sign-In Test</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f4f5f7;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    padding: 40px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+  }
+  h1 {
+    font-size: 20px;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+  }
+  p.sub {
+    font-size: 13px;
+    color: #777;
+    margin-bottom: 28px;
+  }
+  #signin-area {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  #result {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    display: none;
+  }
+  #result.success {
+    background: #e6f4ea;
+    color: #1e7e34;
+    border: 1px solid #b7e1c1;
+    display: block;
+  }
+  #result.denied {
+    background: #fdecea;
+    color: #c0392b;
+    border: 1px solid #f5c6c1;
+    display: block;
+  }
+  #result.error {
+    background: #fff8e1;
+    color: #8a6d00;
+    border: 1px solid #ffe082;
+    display: block;
+  }
+  .email-line {
+    font-family: monospace;
+    font-size: 13px;
+    color: #444;
+    margin-top: 6px;
+    word-break: break-all;
+  }
+  .signout {
+    margin-top: 16px;
+    background: none;
+    border: none;
+    color: #4a6fa5;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Exec Dashboard — Access Test</h1>
+  <p class="sub">Sign in with your Achira Google account to verify access.</p>
+
+  <div id="signin-area"></div>
+
+  <div id="result"></div>
+  <button id="signout-btn" class="signout" style="display:none">Sign out and try another account</button>
+</div>
+
+<script>
+  // ---- CONFIG ----
+  const GOOGLE_CLIENT_ID = "889842955597-3dhg863542gbmplueorgavm30korhr89.apps.googleusercontent.com";
+
+  // This is the SAME allowlist logic the real backend will enforce.
+  // For this isolated test, we check it client-side just to confirm the
+  // sign-in + email-extraction flow works end-to-end. The real dashboard
+  // will re-check this list server-side in Apps Script — never trust a
+  // client-side check alone for real data.
+  const ALLOWED_EMAILS = [
+    "siddharth.r@achiralabs.com",
+    "accounts@achiralabs.com",
+    "d.dendukuri@achiralabs.com",
+    "bhupal@achiralabs.com"
+  ];
+
+  function decodeJwt(token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function handleCredentialResponse(response) {
+    const payload = decodeJwt(response.credential);
+    const resultEl = document.getElementById('result');
+    const signoutBtn = document.getElementById('signout-btn');
+
+    if (!payload || !payload.email) {
+      resultEl.className = 'error';
+      resultEl.innerHTML = '⚠️ Could not read sign-in response. Try again.';
+      return;
+    }
+
+    const email = payload.email.toLowerCase().trim();
+    const emailVerified = payload.email_verified;
+
+    if (!emailVerified) {
+      resultEl.className = 'denied';
+      resultEl.innerHTML = '❌ Email not verified by Google. Access denied.';
+      signoutBtn.style.display = 'inline';
+      return;
+    }
+
+    if (ALLOWED_EMAILS.includes(email)) {
+      resultEl.className = 'success';
+      resultEl.innerHTML = '✅ Signed in successfully.<div class="email-line">' + email + '</div>' +
+        '<div style="margin-top:10px;font-size:12px;color:#1e7e34">This account has dashboard access.</div>';
+    } else {
+      resultEl.className = 'denied';
+      resultEl.innerHTML = '❌ Access restricted.<div class="email-line">' + email + '</div>' +
+        '<div style="margin-top:10px;font-size:12px;color:#c0392b">This account is not on the approved list for this dashboard.</div>';
+    }
+    signoutBtn.style.display = 'inline';
+    document.getElementById('signin-area').style.display = 'none';
+  }
+
+  window.onload = function () {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('signin-area'),
+      { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill' }
+    );
+
+    document.getElementById('signout-btn').addEventListener('click', function () {
+      google.accounts.id.disableAutoSelect();
+      document.getElementById('result').className = '';
+      document.getElementById('result').innerHTML = '';
+      document.getElementById('result').style.display = 'none';
+      document.getElementById('signin-area').style.display = 'flex';
+      document.getElementById('signout-btn').style.display = 'none';
+    });
+  };
+</script>
+
+</body>
+</html>
