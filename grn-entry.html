@@ -392,7 +392,11 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   submitBtn.textContent = 'Submit GRN';
 
   if (result && result.status === 'success') {
-    showMsg('✅ GRN ' + result.grnNo + ' logged in "' + result.tabName + '".', 'success');
+    let msg = '✅ GRN ' + result.grnNo + ' logged in "' + result.tabName + '".';
+    if (result.skippedFields && result.skippedFields.length) {
+      msg += ' Note: this tab has no matching column for: ' + result.skippedFields.join(', ') + ' — those values were not saved.';
+    }
+    showMsg(msg, 'success');
     document.getElementById('grnForm').reset();
     refreshSuggestions(true);
   } else {
