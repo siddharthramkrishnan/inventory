@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verify GRN · Achira Labs</title>
+<style>
+  :root{
+    --ink:#16211f;
+    --paper:#f6f7f5;
+    --card:#ffffff;
+    --accent:#1f5f52;
+    --accent-dark:#153f37;
+    --line:#dde3e0;
+    --muted:#5c6b67;
+    --green:#1e7a44;
+    --green-bg:#e7f5ec;
+    --red:#b3312c;
+    --red-bg:#fbe9e8;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  header{
+    background:var(--accent-dark);
+    color:#fff;
+    padding:22px 18px 20px;
+  }
+  header h1{ margin:0; font-size:19px; font-weight:700; }
+  header p{ margin:4px 0 0; font-size:13px; color:#cfe0da; }
+  .wrap{ max-width:560px; margin:0 auto; padding:16px 14px 60px; }
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .hint-box{
+    background:var(--green-bg);
+    color:var(--accent-dark);
+    padding:12px 14px;
+    border-radius:8px;
+    font-size:13px;
+    margin-bottom:16px;
+  }
+  .row{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    padding:9px 0;
+    border-bottom:1px solid #eef1f0;
+    font-size:14px;
+  }
+  .row:last-child{ border-bottom:none; }
+  .row .label{ color:var(--muted); flex-shrink:0; }
+  .row .value{ text-align:right; font-weight:600; }
+  .field{ margin-top:16px; }
+  label{ display:block; font-size:13px; font-weight:600; margin-bottom:5px; }
+  input[type="text"], select{
+    width:100%;
+    padding:10px 11px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:14px;
+    font-family:inherit;
+  }
+  button.approve{
+    width:100%;
+    padding:14px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    margin-top:16px;
+  }
+  button.approve:disabled{ opacity:0.6; cursor:default; }
+  .msg{
+    padding:12px 14px;
+    border-radius:8px;
+    font-size:13px;
+    margin-bottom:16px;
+    display:none;
+  }
+  .msg.success{ background:var(--green-bg); color:var(--green); display:block; }
+  .msg.error{ background:var(--red-bg); color:var(--red); display:block; }
+  .status-badge{
+    display:inline-block;
+    font-size:12px;
+    font-weight:700;
+    padding:3px 10px;
+    border-radius:20px;
+  }
+  .status-badge.pending{ background:#fdf3e2; color:#a5690c; }
+  .status-badge.verified{ background:var(--green-bg); color:var(--green); }
+  #loading{ padding:40px 0; text-align:center; color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>\ud83d\udce6 Verify GRN</h1>
+  <p>Achira Labs \u00b7 Confirm delivery against your PO</p>
+</header>
+
+<div class="wrap">
+  <div id="msg" class="msg"></div>
+  <div id="loading">Loading GRN details\u2026</div>
+  <div id="content" style="display:none">
+    <div class="hint-box">
+      Please check the details below match what you ordered before approving. If anything looks wrong, contact the store manager directly rather than approving.
+    </div>
+
+    <div class="card" id="detailsCard"></div>
+
+    <div class="card">
+      <div class="field">
+        <label>Your Name <span style="color:var(--red)">*</span></label>
+        <input type="text" id="f-person" list="employeeList" placeholder="Start typing your name\u2026">
+        <datalist id="employeeList"></datalist>
+      </div>
+      <button type="button" class="approve" id="approveBtn">Approve</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec';
+
+const params = new URLSearchParams(window.location.search);
+const tabParam = params.get('tab') || '';
+const grnParam = params.get('grn') || '';
+
+function jsonp(action, extraParams) {
+  return new Promise(function(resolve) {
+    const callbackName = 'cb_' + action + '_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    let qs = 'action=' + action + '&callback=' + callbackName;
+    for (const k in extraParams) {
+      qs += '&' + k + '=' + encodeURIComponent(extraParams[k]);
+    }
+    window[callbackName] = function(result) {
+      delete window[callbackName];
+      document.body.removeChild(script);
+      resolve(result);
+    };
+    const script = document.createElement('script');
+    script.src = APPS_SCRIPT_URL + '?' + qs;
+    script.onerror = function() {
+      delete window[callbackName];
+      if (document.body.contains(script)) document.body.removeChild(script);
+      resolve(null);
+    };
+    document.body.appendChild(script);
+  });
+}
+
+function showMsg(text, type) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg ' + type;
+}
+
+function row(label, value) {
+  return '<div class="row"><span class="label">' + label + '</span><span class="value">' + (value || '\u2014') + '</span></div>';
+}
+
+let currentGrn = null;
+
+async function loadDetails() {
+  if (!tabParam || !grnParam) {
+    document.getElementById('loading').textContent = 'Missing GRN reference \u2014 this link looks incomplete.';
+    return;
+  }
+
+  const result = await jsonp('grnverifylookup', { tab: tabParam, grn: grnParam });
+  document.getElementById('loading').style.display = 'none';
+
+  if (!result || result.status !== 'success') {
+    showMsg((result && result.message) || 'Could not load this GRN.', 'error');
+    return;
+  }
+
+  currentGrn = result.grn;
+  const g = result.grn;
+  const status = g['Verification Status'] || 'Pending Verification';
+  const isVerified = status === 'Verified';
+
+  const badge = isVerified
+    ? '<span class="status-badge verified">Verified</span>'
+    : '<span class="status-badge pending">Pending Verification</span>';
+
+  document.getElementById('detailsCard').innerHTML =
+    '<div style="margin-bottom:10px">' + badge + '</div>' +
+    row('GRN No.', g['GRN No.']) +
+    row('PO No.', g['PO No.']) +
+    row('Vendor', g['Name of the Party']) +
+    row('Material', g['Description of Material']) +
+    row('Quantity', g['Quantity']) +
+    row('Invoice No.', g['Invoice No.']) +
+    row('Invoice Amount', g['Invoice Amount']) +
+    row('Received Date', g['Recived Date']) +
+    row('Requested By', g['Requested by']);
+
+  document.getElementById('content').style.display = 'block';
+
+  if (isVerified) {
+    showMsg('\u2705 This GRN was already verified by ' + (g['Verified By'] || 'someone') + '.', 'success');
+    document.getElementById('approveBtn').disabled = true;
+    document.getElementById('approveBtn').textContent = 'Already Approved';
+  }
+}
+
+async function loadEmployees() {
+  const result = await jsonp('employees', {});
+  if (result && result.status === 'success' && Array.isArray(result.employees)) {
+    const datalist = document.getElementById('employeeList');
+    result.employees.forEach(function(name) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      datalist.appendChild(opt);
+    });
+  }
+}
+
+document.getElementById('approveBtn').addEventListener('click', async function() {
+  const person = document.getElementById('f-person').value.trim();
+  if (!person) {
+    showMsg('Please enter your name before approving.', 'error');
+    return;
+  }
+  const btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Approving\u2026';
+
+  const result = await jsonp('grnverify', { tab: tabParam, grn: grnParam, person: person });
+
+  if (result && result.status === 'success') {
+    showMsg('\u2705 GRN ' + grnParam + ' approved. Thank you!', 'success');
+    btn.textContent = 'Approved';
+  } else {
+    showMsg((result && result.message) || 'Something went wrong \u2014 please try again.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Approve';
+  }
+});
+
+loadDetails();
+loadEmployees();
+</script>
+</body>
+</html>
