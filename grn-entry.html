@@ -127,6 +127,20 @@
 
   <form id="grnForm">
     <div class="card">
+      <p class="section-title">Link to Purchase Order</p>
+      <div class="field">
+        <label>Open PO <span class="hint">Optional — auto-fills vendor, material, and quantity below</span></label>
+        <select id="f-po-select">
+          <option value="">Loading open POs…</option>
+        </select>
+      </div>
+      <div class="field" id="poItemField" style="display:none">
+        <label>Item on this PO <span class="req">*</span></label>
+        <select id="f-po-item-select"></select>
+      </div>
+    </div>
+
+    <div class="card">
       <p class="section-title">Category</p>
       <div class="field">
         <label>GRN Category / Tab <span class="req">*</span>
@@ -351,8 +365,79 @@ document.getElementById('f-tab').addEventListener('change', function() { refresh
 document.getElementById('f-grn-prefix').addEventListener('change', function() { refreshSuggestions(true); });
 document.getElementById('suggestBtn').addEventListener('click', function() { refreshSuggestions(true); });
 
+// Loads open POs from the shared Drive folder into the PO picker. A
+// person can also just ignore this and fill the form manually — it's a
+// convenience, not a requirement (the "PO No." field below stays a plain
+// text field either way).
+let activePOsData = [];
+
+async function loadActivePOs() {
+  const select = document.getElementById('f-po-select');
+  const result = await jsonp('activePOs', {});
+  select.innerHTML = '';
+
+  const noneOpt = document.createElement('option');
+  noneOpt.value = '';
+  noneOpt.textContent = '— Fill in manually (no PO) —';
+  select.appendChild(noneOpt);
+
+  if (result && result.status === 'success' && Array.isArray(result.pos) && result.pos.length) {
+    activePOsData = result.pos;
+    result.pos.forEach(function(po, idx) {
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      opt.textContent = po.poNo + (po.vendor ? ' — ' + po.vendor : '');
+      select.appendChild(opt);
+    });
+  } else {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No open POs found';
+    select.appendChild(opt);
+  }
+}
+
+document.getElementById('f-po-select').addEventListener('change', function() {
+  const itemField = document.getElementById('poItemField');
+  const itemSelect = document.getElementById('f-po-item-select');
+  const idx = this.value;
+
+  if (idx === '') {
+    itemField.style.display = 'none';
+    itemSelect.innerHTML = '';
+    return;
+  }
+
+  const po = activePOsData[Number(idx)];
+  document.getElementById('f-po-no').value = po.poNo || '';
+
+  itemSelect.innerHTML = '';
+  po.items.forEach(function(item, i) {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = item.description + ' (Qty ordered: ' + item.quantity + (item.unit ? ' ' + item.unit : '') + ')';
+    itemSelect.appendChild(opt);
+  });
+  itemField.style.display = 'block';
+  itemSelect.dispatchEvent(new Event('change'));
+});
+
+document.getElementById('f-po-item-select').addEventListener('change', function() {
+  const poIdx = document.getElementById('f-po-select').value;
+  if (poIdx === '') return;
+  const po = activePOsData[Number(poIdx)];
+  const item = po.items[Number(this.value)];
+  if (!item) return;
+
+  document.getElementById('f-material-description').value = item.description || '';
+  document.getElementById('f-quantity').value = item.quantity || '';
+  document.getElementById('f-party-name').value = po.vendor || '';
+  document.getElementById('f-invoice-amount').value = item.amount || '';
+});
+
 loadTabs();
 loadEmployees();
+loadActivePOs();
 
 document.getElementById('grnForm').addEventListener('submit', async function(e) {
   e.preventDefault();
