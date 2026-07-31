@@ -231,7 +231,7 @@
       </div>
 
       <div id="poSelectedNote" class="hint-box" style="display:none">
-        Material, quantity, and amount are taken from the checked item(s) above — nothing else to fill in here for this delivery.
+        Material, quantity, amount, basic cost, and GST are taken from each checked item above — edit them right there if they differ from the PO. Only "Other Charges" (e.g. freight) below applies to the whole delivery.
       </div>
 
       <div id="manualItemFields">
@@ -251,16 +251,16 @@
         </div>
       </div>
       <div class="row2">
-        <div class="field">
+        <div id="manualBasicAmountField" class="field">
           <label>Basic Amount</label>
           <input type="text" id="f-basic-amount">
         </div>
         <div class="field">
-          <label>Other Charges</label>
+          <label>Other Charges <span class="hint">Freight, etc. — applies once to the whole delivery</span></label>
           <input type="text" id="f-other-charges">
         </div>
       </div>
-      <div class="field">
+      <div id="manualGstField" class="field">
         <label>GST</label>
         <input type="text" id="f-gst">
       </div>
@@ -429,6 +429,8 @@ document.getElementById('f-po-select').addEventListener('change', function() {
     manualFields.style.display = 'block';
     poNote.style.display = 'none';
     document.getElementById('f-material-description').required = true;
+    document.getElementById('manualBasicAmountField').style.display = 'block';
+    document.getElementById('manualGstField').style.display = 'block';
     return;
   }
 
@@ -442,6 +444,8 @@ document.getElementById('f-po-select').addEventListener('change', function() {
   manualFields.style.display = 'none';
   poNote.style.display = 'block';
   document.getElementById('f-material-description').required = false;
+  document.getElementById('manualBasicAmountField').style.display = 'none';
+  document.getElementById('manualGstField').style.display = 'none';
 
   // One delivery can cover several PO line items (confirmed against a
   // real vendor invoice), so every item on this PO gets its own
@@ -452,7 +456,9 @@ document.getElementById('f-po-select').addEventListener('change', function() {
   activePOItemsByCheckboxId = {};
   po.items.forEach(function(item, i) {
     const cbId = 'po-item-cb-' + i;
-    activePOItemsByCheckboxId[cbId] = item;
+    const basicId = 'po-item-basic-' + i;
+    const gstId = 'po-item-gst-' + i;
+    activePOItemsByCheckboxId[cbId] = { item: item, basicId: basicId, gstId: gstId };
 
     const rateText = item.rate ? (' @ \u20b9' + item.rate + (item.unit ? '/' + item.unit : '')) : '';
     const amountText = item.amount ? (' = \u20b9' + item.amount) : '';
@@ -463,12 +469,26 @@ document.getElementById('f-po-select').addEventListener('change', function() {
     wrapper.style.alignItems = 'flex-start';
     wrapper.innerHTML =
       '<input type="checkbox" class="po-item-checkbox" id="' + cbId + '" checked style="margin-top:3px">' +
+      '<div style="flex:1">' +
       '<label for="' + cbId + '" style="font-weight:500;line-height:1.4">' +
         item.description + '<br>' +
         '<span style="font-weight:400;color:var(--muted);font-size:12.5px">' +
           'Qty ' + item.quantity + (item.unit ? ' ' + item.unit : '') + rateText + amountText +
         '</span>' +
-      '</label>';
+      '</label>' +
+      // Basic Amount and GST are per-item, not shared across the whole
+      // GRN — different items on the same invoice can have different tax
+      // rates or basic costs. Basic Amount defaults to this item's own
+      // PO amount as a starting guess, editable to match the real invoice.
+      '<div style="display:flex;gap:8px;margin-top:6px">' +
+        '<div style="flex:1"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Basic Amt (this item)</label>' +
+          '<input type="text" id="' + basicId + '" value="' + (item.amount || '') + '" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+        '</div>' +
+        '<div style="flex:1"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">GST (this item)</label>' +
+          '<input type="text" id="' + gstId + '" placeholder="e.g. 18% or 540" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+        '</div>' +
+      '</div>' +
+      '</div>';
     checklist.appendChild(wrapper);
   });
   itemField.style.display = 'block';
@@ -517,11 +537,16 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   let itemPayloads;
   if (checkedItems.length > 0) {
     itemPayloads = checkedItems.map(function(cb) {
-      const item = activePOItemsByCheckboxId[cb.id];
+      const entry = activePOItemsByCheckboxId[cb.id];
+      const item = entry.item;
+      const basicAmount = document.getElementById(entry.basicId).value.trim();
+      const gst = document.getElementById(entry.gstId).value.trim();
       return Object.assign({}, baseData, {
         materialDescription: item.description || '',
         quantity: item.quantity || '',
         invoiceAmount: item.amount || '',
+        basicAmount: basicAmount,
+        gst: gst,
       });
     });
   } else {
