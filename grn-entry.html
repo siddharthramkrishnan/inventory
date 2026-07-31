@@ -89,6 +89,14 @@
     margin-top:4px;
   }
   .checkbox-field{ display:flex; align-items:center; gap:8px; }
+  .hint-box{
+    background:var(--green-bg,#e7f5ec);
+    color:var(--accent-dark);
+    padding:10px 12px;
+    border-radius:8px;
+    font-size:13px;
+    margin-bottom:14px;
+  }
   .checkbox-field input{ width:auto; }
   .checkbox-field label{ margin:0; font-weight:500; }
   button.submit{
@@ -221,18 +229,25 @@
         <label>Name of the Party <span class="hint">Vendor</span></label>
         <input type="text" id="f-party-name">
       </div>
-      <div class="field">
-        <label>Description of Material <span class="req">*</span></label>
-        <textarea id="f-material-description" rows="2" required></textarea>
+
+      <div id="poSelectedNote" class="hint-box" style="display:none">
+        Material, quantity, and amount are taken from the checked item(s) above — nothing else to fill in here for this delivery.
       </div>
-      <div class="row2">
+
+      <div id="manualItemFields">
         <div class="field">
-          <label>Quantity</label>
-          <input type="text" id="f-quantity" placeholder="e.g. 100 or 20L">
+          <label>Description of Material <span class="req">*</span></label>
+          <textarea id="f-material-description" rows="2" required></textarea>
         </div>
-        <div class="field">
-          <label>Invoice Amount</label>
-          <input type="text" id="f-invoice-amount" placeholder="e.g. 4500.00 or USD 300">
+        <div class="row2">
+          <div class="field">
+            <label>Quantity</label>
+            <input type="text" id="f-quantity" placeholder="e.g. 100 or 20L">
+          </div>
+          <div class="field">
+            <label>Invoice Amount</label>
+            <input type="text" id="f-invoice-amount" placeholder="e.g. 4500.00 or USD 300">
+          </div>
         </div>
       </div>
       <div class="row2">
@@ -403,12 +418,17 @@ async function loadActivePOs() {
 document.getElementById('f-po-select').addEventListener('change', function() {
   const itemField = document.getElementById('poItemField');
   const checklist = document.getElementById('poItemChecklist');
+  const manualFields = document.getElementById('manualItemFields');
+  const poNote = document.getElementById('poSelectedNote');
   const idx = this.value;
 
   if (idx === '') {
     itemField.style.display = 'none';
     checklist.innerHTML = '';
     activePOItemsByCheckboxId = {};
+    manualFields.style.display = 'block';
+    poNote.style.display = 'none';
+    document.getElementById('f-material-description').required = true;
     return;
   }
 
@@ -416,22 +436,38 @@ document.getElementById('f-po-select').addEventListener('change', function() {
   document.getElementById('f-po-no').value = po.poNo || '';
   document.getElementById('f-party-name').value = po.vendor || '';
 
+  // Once a PO is selected, material/quantity/amount come from the
+  // checked item(s) below — not from the manual fields, which would
+  // otherwise sit there looking like they still need filling in.
+  manualFields.style.display = 'none';
+  poNote.style.display = 'block';
+  document.getElementById('f-material-description').required = false;
+
   // One delivery can cover several PO line items (confirmed against a
   // real vendor invoice), so every item on this PO gets its own
-  // checkbox — check all that arrived in this delivery.
+  // checkbox — check all that arrived in this delivery. Each item shows
+  // its OWN quantity and amount, since different items on the same PO
+  // can have very different costs.
   checklist.innerHTML = '';
   activePOItemsByCheckboxId = {};
   po.items.forEach(function(item, i) {
     const cbId = 'po-item-cb-' + i;
     activePOItemsByCheckboxId[cbId] = item;
 
+    const rateText = item.rate ? (' @ \u20b9' + item.rate + (item.unit ? '/' + item.unit : '')) : '';
+    const amountText = item.amount ? (' = \u20b9' + item.amount) : '';
+
     const wrapper = document.createElement('div');
     wrapper.className = 'checkbox-field';
-    wrapper.style.marginBottom = '8px';
+    wrapper.style.marginBottom = '10px';
+    wrapper.style.alignItems = 'flex-start';
     wrapper.innerHTML =
-      '<input type="checkbox" class="po-item-checkbox" id="' + cbId + '" checked>' +
-      '<label for="' + cbId + '" style="font-weight:500">' +
-        item.description + ' (Qty ordered: ' + item.quantity + (item.unit ? ' ' + item.unit : '') + ')' +
+      '<input type="checkbox" class="po-item-checkbox" id="' + cbId + '" checked style="margin-top:3px">' +
+      '<label for="' + cbId + '" style="font-weight:500;line-height:1.4">' +
+        item.description + '<br>' +
+        '<span style="font-weight:400;color:var(--muted);font-size:12.5px">' +
+          'Qty ' + item.quantity + (item.unit ? ' ' + item.unit : '') + rateText + amountText +
+        '</span>' +
       '</label>';
     checklist.appendChild(wrapper);
   });
