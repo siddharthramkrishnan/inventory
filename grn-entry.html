@@ -135,8 +135,10 @@
         </select>
       </div>
       <div class="field" id="poItemField" style="display:none">
-        <label>Item on this PO <span class="req">*</span></label>
-        <select id="f-po-item-select"></select>
+        <label>Item(s) received in this delivery <span class="req">*</span>
+          <span class="hint">Check all items included in this GRN — one delivery can cover several PO line items</span>
+        </label>
+        <div id="poItemChecklist"></div>
       </div>
     </div>
 
@@ -370,6 +372,7 @@ document.getElementById('suggestBtn').addEventListener('click', function() { ref
 // convenience, not a requirement (the "PO No." field below stays a plain
 // text field either way).
 let activePOsData = [];
+let activePOItemsByCheckboxId = {};
 
 async function loadActivePOs() {
   const select = document.getElementById('f-po-select');
@@ -399,40 +402,40 @@ async function loadActivePOs() {
 
 document.getElementById('f-po-select').addEventListener('change', function() {
   const itemField = document.getElementById('poItemField');
-  const itemSelect = document.getElementById('f-po-item-select');
+  const checklist = document.getElementById('poItemChecklist');
   const idx = this.value;
 
   if (idx === '') {
     itemField.style.display = 'none';
-    itemSelect.innerHTML = '';
+    checklist.innerHTML = '';
+    activePOItemsByCheckboxId = {};
     return;
   }
 
   const po = activePOsData[Number(idx)];
   document.getElementById('f-po-no').value = po.poNo || '';
+  document.getElementById('f-party-name').value = po.vendor || '';
 
-  itemSelect.innerHTML = '';
+  // One delivery can cover several PO line items (confirmed against a
+  // real vendor invoice), so every item on this PO gets its own
+  // checkbox — check all that arrived in this delivery.
+  checklist.innerHTML = '';
+  activePOItemsByCheckboxId = {};
   po.items.forEach(function(item, i) {
-    const opt = document.createElement('option');
-    opt.value = String(i);
-    opt.textContent = item.description + ' (Qty ordered: ' + item.quantity + (item.unit ? ' ' + item.unit : '') + ')';
-    itemSelect.appendChild(opt);
+    const cbId = 'po-item-cb-' + i;
+    activePOItemsByCheckboxId[cbId] = item;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'checkbox-field';
+    wrapper.style.marginBottom = '8px';
+    wrapper.innerHTML =
+      '<input type="checkbox" class="po-item-checkbox" id="' + cbId + '" checked>' +
+      '<label for="' + cbId + '" style="font-weight:500">' +
+        item.description + ' (Qty ordered: ' + item.quantity + (item.unit ? ' ' + item.unit : '') + ')' +
+      '</label>';
+    checklist.appendChild(wrapper);
   });
   itemField.style.display = 'block';
-  itemSelect.dispatchEvent(new Event('change'));
-});
-
-document.getElementById('f-po-item-select').addEventListener('change', function() {
-  const poIdx = document.getElementById('f-po-select').value;
-  if (poIdx === '') return;
-  const po = activePOsData[Number(poIdx)];
-  const item = po.items[Number(this.value)];
-  if (!item) return;
-
-  document.getElementById('f-material-description').value = item.description || '';
-  document.getElementById('f-quantity').value = item.quantity || '';
-  document.getElementById('f-party-name').value = po.vendor || '';
-  document.getElementById('f-invoice-amount').value = item.amount || '';
 });
 
 loadTabs();
@@ -443,11 +446,10 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   e.preventDefault();
   const submitBtn = document.getElementById('submitBtn');
   submitBtn.disabled = true;
-  submitBtn.textContent = 'Submitting…';
   showMsg('', '');
   document.getElementById('msg').className = 'msg';
 
-  const data = {
+  const baseData = {
     tabName: document.getElementById('f-tab').value,
     slNo: document.getElementById('f-sl-no').value.trim(),
     receivedDate: document.getElementById('f-received-date').value,
@@ -459,9 +461,6 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     catalogueLotNo: document.getElementById('f-catalogue-lot-no').value.trim(),
     grnNo: document.getElementById('f-grn-no').value.trim(),
     partyName: document.getElementById('f-party-name').value.trim(),
-    materialDescription: document.getElementById('f-material-description').value.trim(),
-    quantity: document.getElementById('f-quantity').value.trim(),
-    invoiceAmount: document.getElementById('f-invoice-amount').value.trim(),
     receivedBy: document.getElementById('f-received-by').value.trim(),
     issuedTo: document.getElementById('f-issued-to').value.trim(),
     receiptAcknowledged: document.getElementById('f-receipt-ack').checked ? 'Yes' : '',
@@ -471,21 +470,62 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     gst: document.getElementById('f-gst').value.trim(),
   };
 
-  const result = await jsonp('grncreate', { data: JSON.stringify(data) });
+  // FIX: one GRN No. can legitimately cover MULTIPLE items in a single
+  // delivery (confirmed against a real vendor invoice with 3 line items
+  // under one GRN No.). If items were checked from a linked PO, submit
+  // ONE row per checked item — same GRN No. throughout — instead of just
+  // the single Material Description/Quantity fields below, which only
+  // support one item.
+  const checkedItems = Array.from(document.querySelectorAll('.po-item-checkbox:checked'));
+
+  let itemPayloads;
+  if (checkedItems.length > 0) {
+    itemPayloads = checkedItems.map(function(cb) {
+      const item = activePOItemsByCheckboxId[cb.id];
+      return Object.assign({}, baseData, {
+        materialDescription: item.description || '',
+        quantity: item.quantity || '',
+        invoiceAmount: item.amount || '',
+      });
+    });
+  } else {
+    itemPayloads = [Object.assign({}, baseData, {
+      materialDescription: document.getElementById('f-material-description').value.trim(),
+      quantity: document.getElementById('f-quantity').value.trim(),
+      invoiceAmount: document.getElementById('f-invoice-amount').value.trim(),
+    })];
+  }
+
+  submitBtn.textContent = itemPayloads.length > 1 ? ('Submitting ' + itemPayloads.length + ' items…') : 'Submitting…';
+
+  const results = [];
+  for (const payload of itemPayloads) {
+    const result = await jsonp('grncreate', { data: JSON.stringify(payload) });
+    results.push(result);
+  }
 
   submitBtn.disabled = false;
   submitBtn.textContent = 'Submit GRN';
 
-  if (result && result.status === 'success') {
-    let msg = '✅ GRN ' + result.grnNo + ' logged in "' + result.tabName + '".';
-    if (result.skippedFields && result.skippedFields.length) {
-      msg += ' Note: this tab has no matching column for: ' + result.skippedFields.join(', ') + ' — those values were not saved.';
+  const successes = results.filter(function(r) { return r && r.status === 'success'; });
+  const failures = results.filter(function(r) { return !r || r.status !== 'success'; });
+  const allSkipped = successes.reduce(function(acc, r) { return acc.concat(r.skippedFields || []); }, []);
+
+  if (successes.length > 0 && failures.length === 0) {
+    let msg = successes.length > 1
+      ? '✅ ' + successes.length + ' items logged under GRN ' + baseData.grnNo + ' in "' + baseData.tabName + '".'
+      : '✅ GRN ' + successes[0].grnNo + ' logged in "' + successes[0].tabName + '".';
+    if (allSkipped.length) {
+      msg += ' Note: this tab has no matching column for: ' + Array.from(new Set(allSkipped)).join(', ') + ' — those values were not saved.';
     }
     showMsg(msg, 'success');
     document.getElementById('grnForm').reset();
+    document.getElementById('poItemField').style.display = 'none';
     refreshSuggestions(true);
+  } else if (successes.length > 0 && failures.length > 0) {
+    showMsg('⚠️ ' + successes.length + ' item(s) saved, but ' + failures.length + ' failed: ' + (failures[0].message || 'unknown error') + '. Check the sheet before retrying the failed item(s).', 'error');
   } else {
-    showMsg('❌ ' + ((result && result.message) || 'Something went wrong — please check the sheet directly before retrying.'), 'error');
+    showMsg('❌ ' + ((results[0] && results[0].message) || 'Something went wrong — please check the sheet directly before retrying.'), 'error');
   }
 });
 </script>

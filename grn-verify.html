@@ -171,7 +171,7 @@ function row(label, value) {
   return '<div class="row"><span class="label">' + label + '</span><span class="value">' + (value || '\u2014') + '</span></div>';
 }
 
-let currentGrn = null;
+let currentItems = [];
 
 async function loadDetails() {
   if (!tabParam || !grnParam) {
@@ -187,31 +187,41 @@ async function loadDetails() {
     return;
   }
 
-  currentGrn = result.grn;
-  const g = result.grn;
-  const status = g['Verification Status'] || 'Pending Verification';
-  const isVerified = status === 'Verified';
+  // FIX: one GRN No. can cover MULTIPLE items in a single delivery (e.g.
+  // one invoice with 3 line items) \u2014 this now shows every item under
+  // this GRN No. together, and approving confirms the whole delivery at
+  // once rather than one item at a time.
+  currentItems = result.items || [];
+  const first = currentItems[0] || {};
+  const allVerified = currentItems.length > 0 && currentItems.every(function(g) { return g['Verification Status'] === 'Verified'; });
 
-  const badge = isVerified
+  const badge = allVerified
     ? '<span class="status-badge verified">Verified</span>'
     : '<span class="status-badge pending">Pending Verification</span>';
 
+  const itemsHtml = currentItems.map(function(g, idx) {
+    return (currentItems.length > 1 ? '<div style="font-weight:700;margin:14px 0 4px;color:var(--accent-dark)">Item ' + (idx + 1) + '</div>' : '') +
+      row('Material', g['Description of Material']) +
+      row('Quantity', g['Quantity']) +
+      row('Invoice Amount', g['Invoice Amount']);
+  }).join('');
+
   document.getElementById('detailsCard').innerHTML =
-    '<div style="margin-bottom:10px">' + badge + '</div>' +
-    row('GRN No.', g['GRN No.']) +
-    row('PO No.', g['PO No.']) +
-    row('Vendor', g['Name of the Party']) +
-    row('Material', g['Description of Material']) +
-    row('Quantity', g['Quantity']) +
-    row('Invoice No.', g['Invoice No.']) +
-    row('Invoice Amount', g['Invoice Amount']) +
-    row('Received Date', g['Recived Date']) +
-    row('Requested By', g['Requested by']);
+    '<div style="margin-bottom:10px">' + badge +
+      (currentItems.length > 1 ? ' <span style="color:var(--muted);font-size:12px;margin-left:6px">' + currentItems.length + ' items in this delivery</span>' : '') +
+    '</div>' +
+    row('GRN No.', first['GRN No.']) +
+    row('PO No.', first['PO No.']) +
+    row('Vendor', first['Name of the Party']) +
+    row('Invoice No.', first['Invoice No.']) +
+    row('Received Date', first['Recived Date']) +
+    row('Requested By', first['Requested by']) +
+    itemsHtml;
 
   document.getElementById('content').style.display = 'block';
 
-  if (isVerified) {
-    showMsg('\u2705 This GRN was already verified by ' + (g['Verified By'] || 'someone') + '.', 'success');
+  if (allVerified) {
+    showMsg('\u2705 This GRN was already verified by ' + (first['Verified By'] || 'someone') + '.', 'success');
     document.getElementById('approveBtn').disabled = true;
     document.getElementById('approveBtn').textContent = 'Already Approved';
   }
@@ -242,7 +252,8 @@ document.getElementById('approveBtn').addEventListener('click', async function()
   const result = await jsonp('grnverify', { tab: tabParam, grn: grnParam, person: person });
 
   if (result && result.status === 'success') {
-    showMsg('\u2705 GRN ' + grnParam + ' approved. Thank you!', 'success');
+    const itemWord = result.itemsApproved > 1 ? (result.itemsApproved + ' items') : 'GRN ' + grnParam;
+    showMsg('\u2705 ' + itemWord + ' approved. Thank you!', 'success');
     btn.textContent = 'Approved';
   } else {
     showMsg((result && result.message) || 'Something went wrong \u2014 please try again.', 'error');
