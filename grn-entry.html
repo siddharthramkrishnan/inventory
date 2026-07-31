@@ -485,7 +485,7 @@ document.getElementById('f-po-select').addEventListener('change', function() {
           '<input type="text" id="' + basicId + '" value="' + (item.amount || '') + '" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
         '</div>' +
         '<div style="flex:1"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">GST (this item)</label>' +
-          '<input type="text" id="' + gstId + '" placeholder="e.g. 18% or 540" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+          '<input type="text" id="' + gstId + '" placeholder="e.g. 18% (auto-calculates) or 540" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
         '</div>' +
       '</div>' +
       '</div>';
@@ -497,6 +497,25 @@ document.getElementById('f-po-select').addEventListener('change', function() {
 loadTabs();
 loadEmployees();
 loadActivePOs();
+
+// If the GST field was typed as a percentage (e.g. "18%"), computes the
+// actual amount from this item's Basic Amount and returns a value like
+// "414 (18% GST)" — self-explanatory later in the sheet, without anyone
+// having to do the math by hand. If it wasn't typed as a percentage
+// (e.g. someone already entered a rupee amount), passes it through as-is.
+function formatGst(gstInput, basicAmount) {
+  const trimmed = String(gstInput || '').trim();
+  if (!trimmed) return '';
+  const pctMatch = trimmed.match(/^(\d+(\.\d+)?)\s*%$/);
+  if (!pctMatch) return trimmed; // not a percentage — leave exactly as typed
+
+  const pct = parseFloat(pctMatch[1]);
+  const basic = parseFloat(basicAmount);
+  if (isNaN(basic)) return trimmed; // no basic amount to compute against — leave as typed
+
+  const amount = Math.round((basic * pct / 100) * 100) / 100; // round to 2 decimals
+  return amount + ' (' + pct + '% GST)';
+}
 
 document.getElementById('grnForm').addEventListener('submit', async function(e) {
   e.preventDefault();
@@ -523,7 +542,7 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     expDate: document.getElementById('f-exp-date').value,
     basicAmount: document.getElementById('f-basic-amount').value.trim(),
     otherCharges: document.getElementById('f-other-charges').value.trim(),
-    gst: document.getElementById('f-gst').value.trim(),
+    gst: formatGst(document.getElementById('f-gst').value.trim(), document.getElementById('f-basic-amount').value.trim()),
   };
 
   // FIX: one GRN No. can legitimately cover MULTIPLE items in a single
@@ -540,7 +559,7 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
       const entry = activePOItemsByCheckboxId[cb.id];
       const item = entry.item;
       const basicAmount = document.getElementById(entry.basicId).value.trim();
-      const gst = document.getElementById(entry.gstId).value.trim();
+      const gst = formatGst(document.getElementById(entry.gstId).value.trim(), basicAmount);
       return Object.assign({}, baseData, {
         materialDescription: item.description || '',
         quantity: item.quantity || '',
