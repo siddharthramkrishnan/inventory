@@ -187,6 +187,12 @@ async function loadDetails() {
     return;
   }
 
+  // Reset to a known-good default before re-evaluating — matters on
+  // refresh after a partial approval, where some items may still need
+  // approving.
+  document.getElementById('approveBtn').disabled = false;
+  document.getElementById('approveBtn').textContent = 'Approve';
+
   // FIX: one GRN No. can cover MULTIPLE items in a single delivery (e.g.
   // one invoice with 3 line items) \u2014 this now shows every item under
   // this GRN No. together, and approving confirms the whole delivery at
@@ -200,7 +206,15 @@ async function loadDetails() {
     : '<span class="status-badge pending">Pending Verification</span>';
 
   const itemsHtml = currentItems.map(function(g, idx) {
-    return (currentItems.length > 1 ? '<div style="font-weight:700;margin:14px 0 4px;color:var(--accent-dark)">Item ' + (idx + 1) + '</div>' : '') +
+    const cbId = 'verify-item-cb-' + idx;
+    const isVerified = g.verificationStatus === 'Verified';
+    const checkboxHtml = isVerified
+      ? '<span class="status-badge verified" style="margin-right:8px">Verified</span>'
+      : '<input type="checkbox" class="verify-item-checkbox" id="' + cbId + '" data-desc="' + String(g.materialDescription || '').replace(/"/g, '&quot;') + '" checked style="margin-right:8px">';
+    return '<div style="display:flex;align-items:flex-start;gap:8px;margin:14px 0 4px">' +
+        checkboxHtml +
+        (currentItems.length > 1 ? '<label for="' + cbId + '" style="font-weight:700;color:var(--accent-dark)">Item ' + (idx + 1) + '</label>' : '<span></span>') +
+      '</div>' +
       row('Material', g.materialDescription) +
       row('Quantity', g.quantity) +
       row('Invoice Amount', g.invoiceAmount);
@@ -245,16 +259,42 @@ document.getElementById('approveBtn').addEventListener('click', async function()
     showMsg('Please enter your name before approving.', 'error');
     return;
   }
+
+  // Only the checked items get approved — anything unchecked stays
+  // Pending Verification, so the requester can hold back an item they're
+  // unsure about while still confirming the rest of the delivery.
+  const checkedBoxes = Array.from(document.querySelectorAll('.verify-item-checkbox:checked'));
+  if (currentItems.length > 0 && document.querySelectorAll('.verify-item-checkbox').length > 0 && checkedBoxes.length === 0) {
+    showMsg('Please check at least one item to approve.', 'error');
+    return;
+  }
+  const selectedDescriptions = checkedBoxes.map(function(cb) { return cb.getAttribute('data-desc'); });
+
   const btn = this;
   btn.disabled = true;
   btn.textContent = 'Approving\u2026';
 
-  const result = await jsonp('grnverify', { tab: tabParam, grn: grnParam, person: person });
+  const result = await jsonp('grnverify', {
+    tab: tabParam,
+    grn: grnParam,
+    person: person,
+    selected: JSON.stringify(selectedDescriptions),
+  });
 
   if (result && result.status === 'success') {
-    const itemWord = result.itemsApproved > 1 ? (result.itemsApproved + ' items') : 'GRN ' + grnParam;
-    showMsg('\u2705 ' + itemWord + ' approved. Thank you!', 'success');
-    btn.textContent = 'Approved';
+    let msg;
+    if (result.itemsApproved > 1) {
+      msg = result.itemsApproved + ' item(s) approved.';
+    } else if (result.itemsApproved === 1) {
+      msg = 'Item approved.';
+    } else {
+      msg = 'GRN ' + grnParam + ' approved.';
+    }
+    if (result.itemsSkipped) {
+      msg += ' ' + result.itemsSkipped + ' item(s) left as Pending Verification (not checked).';
+    }
+    showMsg('\u2705 ' + msg + ' Thank you!', 'success');
+    await loadDetails(); // refresh — re-enables the button correctly if items still remain unapproved
   } else {
     showMsg((result && result.message) || 'Something went wrong \u2014 please try again.', 'error');
     btn.disabled = false;
