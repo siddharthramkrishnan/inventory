@@ -517,6 +517,19 @@ function formatGst(gstInput, basicAmount) {
   return amount + ' (' + pct + '% GST)';
 }
 
+// FIX: the HTML date picker (<input type="date">) always outputs
+// yyyy-mm-dd internally, regardless of how it's displayed on screen —
+// sending that straight through was creating dates in a different format
+// from the rest of the sheet (which uses dd/mm/yyyy). Converts to
+// dd/mm/yyyy right before submission, so every entry looks consistent.
+function toDDMMYYYY(isoDate) {
+  if (!isoDate) return '';
+  const parts = isoDate.split('-');
+  if (parts.length !== 3) return isoDate; // not the expected yyyy-mm-dd shape — leave as-is
+  const [yyyy, mm, dd] = parts;
+  return dd + '/' + mm + '/' + yyyy;
+}
+
 document.getElementById('grnForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   const submitBtn = document.getElementById('submitBtn');
@@ -527,9 +540,9 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   const baseData = {
     tabName: document.getElementById('f-tab').value,
     slNo: document.getElementById('f-sl-no').value.trim(),
-    receivedDate: document.getElementById('f-received-date').value,
+    receivedDate: toDDMMYYYY(document.getElementById('f-received-date').value),
     invoiceNo: document.getElementById('f-invoice-no').value.trim(),
-    invoiceDate: document.getElementById('f-invoice-date').value,
+    invoiceDate: toDDMMYYYY(document.getElementById('f-invoice-date').value),
     poNo: document.getElementById('f-po-no').value.trim(),
     requestedBy: document.getElementById('f-requested-by').value.trim(),
     inwardEntryNo: document.getElementById('f-inward-entry-no').value.trim(),
@@ -539,7 +552,7 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     receivedBy: document.getElementById('f-received-by').value.trim(),
     issuedTo: document.getElementById('f-issued-to').value.trim(),
     receiptAcknowledged: document.getElementById('f-receipt-ack').checked ? 'Yes' : '',
-    expDate: document.getElementById('f-exp-date').value,
+    expDate: toDDMMYYYY(document.getElementById('f-exp-date').value),
     basicAmount: document.getElementById('f-basic-amount').value.trim(),
     otherCharges: document.getElementById('f-other-charges').value.trim(),
     gst: formatGst(document.getElementById('f-gst').value.trim(), document.getElementById('f-basic-amount').value.trim()),
