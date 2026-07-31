@@ -193,7 +193,7 @@ async function loadDetails() {
   // once rather than one item at a time.
   currentItems = result.items || [];
   const first = currentItems[0] || {};
-  const allVerified = currentItems.length > 0 && currentItems.every(function(g) { return g['Verification Status'] === 'Verified'; });
+  const allVerified = currentItems.length > 0 && currentItems.every(function(g) { return g.verificationStatus === 'Verified'; });
 
   const badge = allVerified
     ? '<span class="status-badge verified">Verified</span>'
@@ -201,27 +201,27 @@ async function loadDetails() {
 
   const itemsHtml = currentItems.map(function(g, idx) {
     return (currentItems.length > 1 ? '<div style="font-weight:700;margin:14px 0 4px;color:var(--accent-dark)">Item ' + (idx + 1) + '</div>' : '') +
-      row('Material', g['Description of Material']) +
-      row('Quantity', g['Quantity']) +
-      row('Invoice Amount', g['Invoice Amount']);
+      row('Material', g.materialDescription) +
+      row('Quantity', g.quantity) +
+      row('Invoice Amount', g.invoiceAmount);
   }).join('');
 
   document.getElementById('detailsCard').innerHTML =
     '<div style="margin-bottom:10px">' + badge +
       (currentItems.length > 1 ? ' <span style="color:var(--muted);font-size:12px;margin-left:6px">' + currentItems.length + ' items in this delivery</span>' : '') +
     '</div>' +
-    row('GRN No.', first['GRN No.']) +
-    row('PO No.', first['PO No.']) +
-    row('Vendor', first['Name of the Party']) +
-    row('Invoice No.', first['Invoice No.']) +
-    row('Received Date', first['Recived Date']) +
-    row('Requested By', first['Requested by']) +
+    row('GRN No.', first.grnNo) +
+    row('PO No.', first.poNo) +
+    row('Vendor', first.partyName) +
+    row('Invoice No.', first.invoiceNo) +
+    row('Received Date', first.receivedDate) +
+    row('Requested By', first.requestedBy) +
     itemsHtml;
 
   document.getElementById('content').style.display = 'block';
 
   if (allVerified) {
-    showMsg('\u2705 This GRN was already verified by ' + (first['Verified By'] || 'someone') + '.', 'success');
+    showMsg('\u2705 This GRN was already verified by ' + (first.verifiedBy || 'someone') + '.', 'success');
     document.getElementById('approveBtn').disabled = true;
     document.getElementById('approveBtn').textContent = 'Already Approved';
   }
