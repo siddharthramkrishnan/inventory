@@ -147,6 +147,33 @@
           <span class="hint">Check all items included in this GRN — one delivery can cover several PO line items</span>
         </label>
         <div id="poItemChecklist"></div>
+
+        <div style="margin-top:14px;border-top:1px dashed var(--line);padding-top:12px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+            <input type="checkbox" id="f-adhoc-toggle">
+            + Add an extra item not on this PO <span class="hint">Substitution, free sample, etc. — logged under the same GRN No.</span>
+          </label>
+          <div id="adhocItemFields" style="display:none;margin-top:10px">
+            <div class="field">
+              <label>Description <span class="hint">What it actually is — will be saved as "[Not on PO] ..." so it's clearly flagged later</span></label>
+              <textarea id="f-adhoc-description" rows="2"></textarea>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label>Quantity</label>
+                <input type="text" id="f-adhoc-quantity" placeholder="e.g. 5">
+              </div>
+              <div class="field">
+                <label>Basic Amount</label>
+                <input type="text" id="f-adhoc-basic-amount" placeholder="e.g. 0 if a free sample">
+              </div>
+            </div>
+            <div class="field">
+              <label>GST <span class="hint">Type a % to auto-calculate, or the exact amount</span></label>
+              <input type="text" id="f-adhoc-gst" placeholder="e.g. 18% or 0">
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -434,6 +461,8 @@ document.getElementById('f-po-select').addEventListener('change', function() {
     document.getElementById('f-material-description').required = true;
     document.getElementById('manualBasicAmountField').style.display = 'block';
     document.getElementById('manualGstField').style.display = 'block';
+    document.getElementById('f-adhoc-toggle').checked = false;
+    document.getElementById('adhocItemFields').style.display = 'none';
     return;
   }
 
@@ -477,7 +506,7 @@ document.getElementById('f-po-select').addEventListener('change', function() {
     const basicId = 'po-item-basic-' + i;
     const gstId = 'po-item-gst-' + i;
     const qtyId = 'po-item-qty-' + i;
-    activePOItemsByCheckboxId[cbId] = { item: item, basicId: basicId, gstId: gstId, qtyId: qtyId };
+    activePOItemsByCheckboxId[cbId] = { item: item, basicId: basicId, gstId: gstId, qtyId: qtyId, poNo: po.poNo };
 
     const hasBalanceInfo = item.remainingQty !== undefined;
     const defaultQty = hasBalanceInfo ? item.remainingQty : item.quantity;
@@ -515,10 +544,60 @@ document.getElementById('f-po-select').addEventListener('change', function() {
           '<input type="text" id="' + gstId + '" placeholder="e.g. 18% (auto-calculates) or 540" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
         '</div>' +
       '</div>' +
+      // Only relevant once something has already arrived against this
+      // item — declares the rest as never coming (vendor short-shipped),
+      // rather than it sitting outstanding on this PO forever.
+      (item.receivedQty > 0
+        ? '<button type="button" class="shortfall-btn" data-cbid="' + cbId + '" style="background:none;border:none;color:var(--red,#b3312c);font-size:12px;text-decoration:underline;cursor:pointer;padding:6px 0 0;margin:0">Report shortfall \u2014 no more of this item is coming</button>'
+        : '') +
       '</div>';
     checklist.appendChild(wrapper);
   });
   itemField.style.display = 'block';
+});
+
+// Event delegation, since these buttons are created dynamically whenever
+// a PO is selected — a direct listener wouldn't exist yet at page load.
+document.getElementById('poItemChecklist').addEventListener('click', async function(e) {
+  const btn = e.target.closest('.shortfall-btn');
+  if (!btn) return;
+
+  const entry = activePOItemsByCheckboxId[btn.getAttribute('data-cbid')];
+  if (!entry) return;
+
+  const reason = prompt('Why is the rest of "' + entry.item.description + '" not coming? (e.g. "Vendor confirmed only 95 of 100 available")');
+  if (reason === null) return; // cancelled
+
+  const closedBy = prompt('Your name (so this can be traced later):');
+  if (!closedBy) {
+    alert('Your name is required to report a shortfall.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  const result = await jsonp('poShortfall', {
+    poNo: entry.poNo,
+    itemDescription: entry.item.description,
+    reason: reason,
+    closedBy: closedBy,
+  });
+
+  if (result && result.status === 'success') {
+    btn.textContent = 'Shortfall reported \u2014 this item won\u2019t show as outstanding again';
+    // Re-fetch the PO list so this item drops off correctly if the
+    // person reopens the picker without a full page reload.
+    loadActivePOs();
+  } else {
+    alert((result && result.message) || 'Something went wrong \u2014 please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Report shortfall \u2014 no more of this item is coming';
+  }
+});
+
+document.getElementById('f-adhoc-toggle').addEventListener('change', function() {
+  document.getElementById('adhocItemFields').style.display = this.checked ? 'block' : 'none';
 });
 
 loadTabs();
@@ -593,7 +672,9 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   // support one item.
   const checkedItems = Array.from(document.querySelectorAll('.po-item-checkbox:checked'));
 
-  let itemPayloads;
+  let itemPayloads = [];
+  const poIsSelected = document.getElementById('f-po-select').value !== '';
+
   if (checkedItems.length > 0) {
     itemPayloads = checkedItems.map(function(cb) {
       const entry = activePOItemsByCheckboxId[cb.id];
@@ -609,12 +690,42 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
         gst: gst,
       });
     });
-  } else {
+  } else if (!poIsSelected) {
     itemPayloads = [Object.assign({}, baseData, {
       materialDescription: document.getElementById('f-material-description').value.trim(),
       quantity: document.getElementById('f-quantity').value.trim(),
       invoiceAmount: document.getElementById('f-invoice-amount').value.trim(),
     })];
+  }
+  // If a PO IS selected but nothing was checked, itemPayloads starts
+  // empty here — that's fine as long as the ad-hoc section below has
+  // something in it; otherwise the "at least one item" check further
+  // down will correctly stop the submission.
+
+  // Ad-hoc item: something that arrived alongside a PO's items but isn't
+  // actually one of them (substitution, free sample, etc.) — added on
+  // TOP of whatever PO items were checked, not instead of them. Prefixed
+  // so it's obviously flagged when scanning the sheet later.
+  const adhocToggle = document.getElementById('f-adhoc-toggle');
+  if (adhocToggle.checked) {
+    const adhocDesc = document.getElementById('f-adhoc-description').value.trim();
+    if (adhocDesc) {
+      const adhocBasic = document.getElementById('f-adhoc-basic-amount').value.trim();
+      itemPayloads.push(Object.assign({}, baseData, {
+        materialDescription: '[Not on PO] ' + adhocDesc,
+        quantity: document.getElementById('f-adhoc-quantity').value.trim(),
+        invoiceAmount: '',
+        basicAmount: adhocBasic,
+        gst: formatGst(document.getElementById('f-adhoc-gst').value.trim(), adhocBasic),
+      }));
+    }
+  }
+
+  if (itemPayloads.length === 0) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit GRN';
+    showMsg('Please check at least one item from the PO, or fill in the extra-item section below, before submitting.', 'error');
+    return;
   }
 
   submitBtn.textContent = itemPayloads.length > 1 ? ('Submitting ' + itemPayloads.length + ' items…') : 'Submitting…';
