@@ -165,25 +165,27 @@
     <div class="card">
       <p class="section-title">Receipt Details</p>
       <div class="field">
-        <label>Received Date <span class="req">*</span></label>
+        <label>Received Date <span class="req">*</span>
+          <span class="hint">The date the goods physically arrived at Achira</span>
+        </label>
         <input type="date" id="f-received-date" required>
       </div>
       <div class="row2">
         <div class="field">
-          <label>Invoice No.</label>
+          <label>Invoice No. <span class="hint">The bill number printed on the vendor's invoice</span></label>
           <input type="text" id="f-invoice-no">
         </div>
         <div class="field">
-          <label>Invoice Date</label>
+          <label>Invoice Date <span class="hint">The date printed on the vendor's invoice — may differ from Received Date</span></label>
           <input type="date" id="f-invoice-date">
         </div>
       </div>
       <div class="field">
-        <label>PO No. <span class="hint">Procurement Request reference, if any</span></label>
+        <label>PO No. <span class="hint">The Purchase Order number this delivery is against, if there is one</span></label>
         <input type="text" id="f-po-no" placeholder="e.g. ACHIRA/24-25/165">
       </div>
       <div class="field">
-        <label>Requested By</label>
+        <label>Requested By <span class="hint">Who originally asked for this material — this is who gets notified to verify it</span></label>
         <input type="text" id="f-requested-by" list="employeeList" placeholder="Start typing a name…">
       </div>
     </div>
@@ -192,17 +194,17 @@
       <p class="section-title">GRN Identifiers</p>
       <div class="row2">
         <div class="field">
-          <label>Sl No.</label>
+          <label>Sl No. <span class="hint">Running serial number — auto-suggested, usually leave as-is</span></label>
           <input type="text" id="f-sl-no" placeholder="Auto-suggested">
         </div>
         <div class="field">
-          <label>Inward Entry No.</label>
+          <label>Inward Entry No. <span class="hint">Optional internal tracking number, if your team keeps one</span></label>
           <input type="text" id="f-inward-entry-no">
         </div>
       </div>
       <div class="row2">
         <div class="field">
-          <label>GRN Prefix</label>
+          <label>GRN Prefix <span class="hint">Pick the one matching this material category</span></label>
           <select id="f-grn-prefix">
             <option value="GR/DD/">GR/DD/</option>
             <option value="GR/CC/">GR/CC/</option>
@@ -212,13 +214,13 @@
           </select>
         </div>
         <div class="field">
-          <label>GRN No. <span class="req">*</span></label>
+          <label>GRN No. <span class="req">*</span> <span class="hint">The unique receipt number for this delivery — auto-suggested, double-check before submitting</span></label>
           <input type="text" id="f-grn-no" required placeholder="Auto-suggested">
         </div>
       </div>
       <button type="button" class="suggest-btn" id="suggestBtn">↻ Re-suggest Sl No. / GRN No. for this category + prefix</button>
       <div class="field" style="margin-top:12px">
-        <label>Catalogue / Lot No.</label>
+        <label>Catalogue / Lot No. <span class="hint">The batch/lot number printed on the item's label, if any</span></label>
         <input type="text" id="f-catalogue-lot-no">
       </div>
     </div>
@@ -226,7 +228,7 @@
     <div class="card">
       <p class="section-title">Material</p>
       <div class="field">
-        <label>Name of the Party <span class="hint">Vendor</span></label>
+        <label>Name of the Party <span class="hint">The vendor/supplier who sent this delivery</span></label>
         <input type="text" id="f-party-name">
       </div>
 
@@ -236,23 +238,23 @@
 
       <div id="manualItemFields">
         <div class="field">
-          <label>Description of Material <span class="req">*</span></label>
+          <label>Description of Material <span class="req">*</span> <span class="hint">Exactly what was received — copy the wording from the vendor's invoice</span></label>
           <textarea id="f-material-description" rows="2" required></textarea>
         </div>
         <div class="row2">
           <div class="field">
-            <label>Quantity</label>
+            <label>Quantity <span class="hint">How many arrived in this delivery</span></label>
             <input type="text" id="f-quantity" placeholder="e.g. 100 or 20L">
           </div>
           <div class="field">
-            <label>Invoice Amount</label>
+            <label>Invoice Amount <span class="hint">Total amount for this item as shown on the invoice</span></label>
             <input type="text" id="f-invoice-amount" placeholder="e.g. 4500.00 or USD 300">
           </div>
         </div>
       </div>
       <div class="row2">
         <div id="manualBasicAmountField" class="field">
-          <label>Basic Amount</label>
+          <label>Basic Amount <span class="hint">The item's cost BEFORE tax (GST) is added</span></label>
           <input type="text" id="f-basic-amount">
         </div>
         <div class="field">
@@ -261,7 +263,7 @@
         </div>
       </div>
       <div id="manualGstField" class="field">
-        <label>GST</label>
+        <label>GST <span class="hint">Type a % (e.g. 18%) to auto-calculate, or enter the exact rupee amount</span></label>
         <input type="text" id="f-gst">
       </div>
       <div class="field">
@@ -273,17 +275,18 @@
     <div class="card">
       <p class="section-title">Handling</p>
       <div class="field">
-        <label>Received By</label>
+        <label>Received By <span class="hint">Who at Achira physically received and checked this delivery</span></label>
         <input type="text" id="f-received-by" list="employeeList" placeholder="Start typing a name…">
       </div>
       <div class="field">
-        <label>Issued To</label>
+        <label>Issued To <span class="hint">If this item is already earmarked for someone specific (optional)</span></label>
         <input type="text" id="f-issued-to" list="employeeList" placeholder="Start typing a name…">
       </div>
       <div class="field checkbox-field">
         <input type="checkbox" id="f-receipt-ack">
         <label for="f-receipt-ack">Receipt Acknowledged</label>
       </div>
+      <div class="hint" style="margin-top:-4px;margin-bottom:2px">Tick this if someone has signed/confirmed physically receiving the goods</div>
     </div>
 
     <datalist id="employeeList"></datalist>
