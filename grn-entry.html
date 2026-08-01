@@ -454,14 +454,34 @@ document.getElementById('f-po-select').addEventListener('change', function() {
   // can have very different costs.
   checklist.innerHTML = '';
   activePOItemsByCheckboxId = {};
-  po.items.forEach(function(item, i) {
+
+  // FIX: previously always showed the FULL originally-ordered quantity,
+  // even for an item partially received on an earlier delivery — risking
+  // double-counting when the remainder arrives later. Now shows each
+  // item's remaining balance and defaults the editable fields to THAT,
+  // not the original order quantity. Fully-received items (remaining =
+  // 0) are simply not shown — there's nothing left to log for them.
+  const outstandingItems = po.items.filter(function(item) {
+    return item.remainingQty === undefined || item.remainingQty > 0;
+  });
+
+  if (outstandingItems.length === 0) {
+    checklist.innerHTML = '<div style="color:var(--muted);font-size:13px">All items on this PO have already been fully received.</div>';
+  }
+
+  outstandingItems.forEach(function(item, i) {
     const cbId = 'po-item-cb-' + i;
     const basicId = 'po-item-basic-' + i;
     const gstId = 'po-item-gst-' + i;
-    activePOItemsByCheckboxId[cbId] = { item: item, basicId: basicId, gstId: gstId };
+    const qtyId = 'po-item-qty-' + i;
+    activePOItemsByCheckboxId[cbId] = { item: item, basicId: basicId, gstId: gstId, qtyId: qtyId };
 
+    const hasBalanceInfo = item.remainingQty !== undefined;
+    const defaultQty = hasBalanceInfo ? item.remainingQty : item.quantity;
+    const balanceText = hasBalanceInfo && item.receivedQty > 0
+      ? (' \u2014 ' + item.receivedQty + ' of ' + item.orderedQty + ' already received, ' + item.remainingQty + ' remaining')
+      : '';
     const rateText = item.rate ? (' @ \u20b9' + item.rate + (item.unit ? '/' + item.unit : '')) : '';
-    const amountText = item.amount ? (' = \u20b9' + item.amount) : '';
 
     const wrapper = document.createElement('div');
     wrapper.className = 'checkbox-field';
@@ -473,9 +493,13 @@ document.getElementById('f-po-select').addEventListener('change', function() {
       '<label for="' + cbId + '" style="font-weight:500;line-height:1.4">' +
         item.description + '<br>' +
         '<span style="font-weight:400;color:var(--muted);font-size:12.5px">' +
-          'Qty ' + item.quantity + (item.unit ? ' ' + item.unit : '') + rateText + amountText +
+          'Ordered ' + (hasBalanceInfo ? item.orderedQty : item.quantity) + (item.unit ? ' ' + item.unit : '') + rateText + balanceText +
         '</span>' +
       '</label>' +
+      '<div style="margin-top:6px">' +
+        '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Quantity received in THIS delivery</label>' +
+        '<input type="text" id="' + qtyId + '" value="' + defaultQty + '" style="width:120px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+      '</div>' +
       // Basic Amount and GST are per-item, not shared across the whole
       // GRN — different items on the same invoice can have different tax
       // rates or basic costs. Basic Amount defaults to this item's own
@@ -571,11 +595,12 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     itemPayloads = checkedItems.map(function(cb) {
       const entry = activePOItemsByCheckboxId[cb.id];
       const item = entry.item;
+      const quantity = document.getElementById(entry.qtyId).value.trim();
       const basicAmount = document.getElementById(entry.basicId).value.trim();
       const gst = formatGst(document.getElementById(entry.gstId).value.trim(), basicAmount);
       return Object.assign({}, baseData, {
         materialDescription: item.description || '',
-        quantity: item.quantity || '',
+        quantity: quantity,
         invoiceAmount: item.amount || '',
         basicAmount: basicAmount,
         gst: gst,
