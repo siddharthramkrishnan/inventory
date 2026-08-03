@@ -261,34 +261,14 @@
       </div>
 
       <div id="manualItemFields">
-        <div class="field">
-          <label>Description of Material <span class="req">*</span> <span class="hint">Exactly what was received — copy the wording from the vendor's invoice</span></label>
-          <textarea id="f-material-description" rows="2" required></textarea>
-        </div>
-        <div class="row2">
-          <div class="field">
-            <label>Quantity <span class="hint">How many arrived in this delivery</span></label>
-            <input type="text" id="f-quantity" placeholder="e.g. 100 or 20L">
-          </div>
-          <div class="field">
-            <label>Invoice Amount <span class="hint">Total amount for this item as shown on the invoice</span></label>
-            <input type="text" id="f-invoice-amount" placeholder="e.g. 4500.00 or USD 300">
-          </div>
-        </div>
+        <div id="manualItemsContainer"></div>
+        <button type="button" id="addManualItemBtn" style="background:none;border:1px dashed var(--line);color:var(--accent);font-size:13px;padding:8px 12px;border-radius:8px;cursor:pointer;width:100%;margin-top:4px">+ Add another item (same GRN No., different item)</button>
       </div>
       <div class="row2">
-        <div id="manualBasicAmountField" class="field">
-          <label>Basic Amount <span class="hint">The item's cost BEFORE tax (GST) is added</span></label>
-          <input type="text" id="f-basic-amount">
-        </div>
         <div class="field">
           <label>Other Charges <span class="hint">Freight, etc. — applies once to the whole delivery</span></label>
           <input type="text" id="f-other-charges">
         </div>
-      </div>
-      <div id="manualGstField" class="field">
-        <label>GST <span class="hint">Type a % (e.g. 18%) to auto-calculate, or enter the exact rupee amount</span></label>
-        <input type="text" id="f-gst">
       </div>
       <div class="field">
         <label>Expiry Date <span class="hint">Batch/lot expiry, if applicable</span></label>
@@ -504,9 +484,6 @@ document.getElementById('f-po-select').addEventListener('change', function() {
     activePOItemsByCheckboxId = {};
     manualFields.style.display = 'block';
     poNote.style.display = 'none';
-    document.getElementById('f-material-description').required = true;
-    document.getElementById('manualBasicAmountField').style.display = 'block';
-    document.getElementById('manualGstField').style.display = 'block';
     document.getElementById('f-adhoc-toggle').checked = false;
     document.getElementById('adhocItemFields').style.display = 'none';
     return;
@@ -521,9 +498,6 @@ document.getElementById('f-po-select').addEventListener('change', function() {
   // otherwise sit there looking like they still need filling in.
   manualFields.style.display = 'none';
   poNote.style.display = 'block';
-  document.getElementById('f-material-description').required = false;
-  document.getElementById('manualBasicAmountField').style.display = 'none';
-  document.getElementById('manualGstField').style.display = 'none';
 
   // One delivery can cover several PO line items (confirmed against a
   // real vendor invoice), so every item on this PO gets its own
@@ -646,6 +620,66 @@ document.getElementById('f-adhoc-toggle').addEventListener('change', function() 
   document.getElementById('adhocItemFields').style.display = this.checked ? 'block' : 'none';
 });
 
+// FIX: the manual (no-PO) path used to support only ONE item per
+// submission — a delivery with several items but no PO reference meant
+// submitting this whole form multiple times, retyping the same GRN No.
+// each time (risking a typo breaking the grouping). Now supports adding
+// multiple hand-typed items, each with its own cost/GST, all submitted
+// together under one GRN No. — same idea as the PO checklist's per-item
+// fields, just for items typed by hand instead of pulled from a PO.
+let manualItemCounter = 0;
+
+function addManualItemBlock() {
+  const container = document.getElementById('manualItemsContainer');
+  const idx = manualItemCounter++;
+  const isFirst = container.children.length === 0;
+
+  const block = document.createElement('div');
+  block.className = 'manual-item-block';
+  block.style.cssText = 'border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px';
+  block.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+      '<span style="font-size:12px;font-weight:700;color:var(--accent-dark)">Item ' + (idx + 1) + '</span>' +
+      (isFirst ? '' : '<button type="button" class="remove-manual-item-btn" data-idx="' + idx + '" style="background:none;border:none;color:var(--red);font-size:12px;cursor:pointer;text-decoration:underline">Remove</button>') +
+    '</div>' +
+    '<div class="field">' +
+      '<label>Description of Material <span class="req">*</span> <span class="hint">Copy the wording from the vendor\'s invoice</span></label>' +
+      '<textarea id="manual-desc-' + idx + '" rows="2"></textarea>' +
+    '</div>' +
+    '<div class="row2">' +
+      '<div class="field">' +
+        '<label>Quantity</label>' +
+        '<input type="text" id="manual-qty-' + idx + '" placeholder="e.g. 100 or 20L">' +
+      '</div>' +
+      '<div class="field">' +
+        '<label>Invoice Amount</label>' +
+        '<input type="text" id="manual-invamt-' + idx + '" placeholder="e.g. 4500.00">' +
+      '</div>' +
+    '</div>' +
+    '<div class="row2">' +
+      '<div class="field">' +
+        '<label>Basic Amount <span class="hint">Cost before GST</span></label>' +
+        '<input type="text" id="manual-basic-' + idx + '">' +
+      '</div>' +
+      '<div class="field">' +
+        '<label>GST <span class="hint">e.g. 18% (auto-calculates) or 540</span></label>' +
+        '<input type="text" id="manual-gst-' + idx + '">' +
+      '</div>' +
+    '</div>';
+  container.appendChild(block);
+}
+
+document.getElementById('addManualItemBtn').addEventListener('click', function() { addManualItemBlock(); });
+
+// Event delegation for Remove buttons, since blocks are created dynamically.
+document.getElementById('manualItemsContainer').addEventListener('click', function(e) {
+  const btn = e.target.closest('.remove-manual-item-btn');
+  if (!btn) return;
+  btn.closest('.manual-item-block').remove();
+});
+
+addManualItemBlock(); // always start with one block visible
+
 loadTabs();
 loadEmployees();
 loadActivePOs();
@@ -737,11 +771,26 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
       });
     });
   } else if (!poIsSelected) {
-    itemPayloads = [Object.assign({}, baseData, {
-      materialDescription: document.getElementById('f-material-description').value.trim(),
-      quantity: document.getElementById('f-quantity').value.trim(),
-      invoiceAmount: document.getElementById('f-invoice-amount').value.trim(),
-    })];
+    // Loop through every manual item block that has a description filled
+    // in — supports multiple hand-typed items under one GRN No., instead
+    // of forcing a separate form submission per item.
+    const manualBlocks = Array.from(document.querySelectorAll('.manual-item-block'));
+    itemPayloads = manualBlocks
+      .map(function(block) {
+        const descEl = block.querySelector('textarea[id^="manual-desc-"]');
+        const desc = descEl ? descEl.value.trim() : '';
+        if (!desc) return null; // skip blank blocks entirely
+        const idx = descEl.id.replace('manual-desc-', '');
+        const basicAmount = document.getElementById('manual-basic-' + idx).value.trim();
+        return Object.assign({}, baseData, {
+          materialDescription: desc,
+          quantity: document.getElementById('manual-qty-' + idx).value.trim(),
+          invoiceAmount: document.getElementById('manual-invamt-' + idx).value.trim(),
+          basicAmount: basicAmount,
+          gst: formatGst(document.getElementById('manual-gst-' + idx).value.trim(), basicAmount),
+        });
+      })
+      .filter(function(p) { return p !== null; });
   }
   // If a PO IS selected but nothing was checked, itemPayloads starts
   // empty here — that's fine as long as the ad-hoc section below has
@@ -799,6 +848,8 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     showMsg(msg, 'success');
     document.getElementById('grnForm').reset();
     document.getElementById('poItemField').style.display = 'none';
+    document.getElementById('manualItemsContainer').innerHTML = '';
+    addManualItemBlock(); // back to a single fresh block, matching the initial page state
     refreshSuggestions(true);
   } else if (successes.length > 0 && failures.length > 0) {
     showMsg('⚠️ ' + successes.length + ' item(s) saved, but ' + failures.length + ' failed: ' + (failures[0].message || 'unknown error') + '. Check the sheet before retrying the failed item(s).', 'error');
