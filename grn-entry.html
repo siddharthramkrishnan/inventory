@@ -286,11 +286,6 @@
         <label>Issued To <span class="hint">If this item is already earmarked for someone specific (optional)</span></label>
         <input type="text" id="f-issued-to" list="employeeList" placeholder="Start typing a name…">
       </div>
-      <div class="field checkbox-field">
-        <input type="checkbox" id="f-receipt-ack">
-        <label for="f-receipt-ack">Receipt Acknowledged</label>
-      </div>
-      <div class="hint" style="margin-top:-4px;margin-bottom:2px">Tick this if someone has signed/confirmed physically receiving the goods</div>
     </div>
 
     <datalist id="employeeList"></datalist>
@@ -737,11 +732,8 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     partyName: document.getElementById('f-party-name').value.trim(),
     receivedBy: document.getElementById('f-received-by').value.trim(),
     issuedTo: document.getElementById('f-issued-to').value.trim(),
-    receiptAcknowledged: document.getElementById('f-receipt-ack').checked ? 'Yes' : '',
     expDate: toDDMMYYYY(document.getElementById('f-exp-date').value),
-    basicAmount: document.getElementById('f-basic-amount').value.trim(),
     otherCharges: document.getElementById('f-other-charges').value.trim(),
-    gst: formatGst(document.getElementById('f-gst').value.trim(), document.getElementById('f-basic-amount').value.trim()),
   };
 
   // FIX: one GRN No. can legitimately cover MULTIPLE items in a single
