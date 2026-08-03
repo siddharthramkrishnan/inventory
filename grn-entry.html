@@ -231,14 +231,11 @@
       </div>
       <div class="row2">
         <div class="field">
-          <label>GRN Prefix <span class="hint">Pick the one matching this material category</span></label>
+          <label>GRN Prefix <span class="hint">Auto-loaded from this category's own history</span></label>
           <select id="f-grn-prefix">
-            <option value="GR/DD/">GR/DD/</option>
-            <option value="GR/CC/">GR/CC/</option>
-            <option value="GR/MM/">GR/MM/</option>
-            <option value="GR/CG/">GR/CG/</option>
-            <option value="GR/SE/">GR/SE/</option>
+            <option value="">Pick a category first</option>
           </select>
+          <input type="text" id="f-grn-prefix-custom" placeholder="e.g. GR/DD/" style="display:none;margin-top:6px">
         </div>
         <div class="field">
           <label>GRN No. <span class="req">*</span> <span class="hint">The unique receipt number for this delivery — auto-suggested, double-check before submitting</span></label>
@@ -366,6 +363,7 @@ async function loadTabs() {
       opt.textContent = tab;
       select.appendChild(opt);
     });
+    await loadPrefixesForTab(select.value);
     refreshSuggestions();
   } else {
     const opt = document.createElement('option');
@@ -391,13 +389,57 @@ async function loadEmployees() {
   }
 }
 
+// FIX: the prefix dropdown used to be a static list shown identically
+// for every category tab, with nothing actually tying a prefix to the
+// tab it belongs to. Now loads whatever prefixes are ACTUALLY used in
+// this specific tab's own GRN history. If a tab has no history yet
+// (brand new / never used), falls back to a plain text field so someone
+// can still type a sensible starting prefix by hand.
+async function loadPrefixesForTab(tabName) {
+  const select = document.getElementById('f-grn-prefix');
+  const customInput = document.getElementById('f-grn-prefix-custom');
+
+  select.innerHTML = '<option value="">Loading…</option>';
+  select.style.display = 'block';
+  customInput.style.display = 'none';
+
+  if (!tabName) {
+    select.innerHTML = '<option value="">Pick a category first</option>';
+    return;
+  }
+
+  const result = await jsonp('grnprefixes', { tabName: tabName });
+  select.innerHTML = '';
+
+  if (result && result.status === 'success' && result.prefixes.length) {
+    result.prefixes.forEach(function(prefix) {
+      const opt = document.createElement('option');
+      opt.value = prefix;
+      opt.textContent = prefix;
+      select.appendChild(opt);
+    });
+  } else {
+    // No GRN history on this tab yet — nothing to derive a prefix from,
+    // so let the person type one instead of guessing on their behalf.
+    select.style.display = 'none';
+    customInput.style.display = 'block';
+    customInput.value = '';
+  }
+}
+
+function getSelectedPrefix() {
+  const select = document.getElementById('f-grn-prefix');
+  const customInput = document.getElementById('f-grn-prefix-custom');
+  return select.style.display !== 'none' ? select.value : customInput.value.trim();
+}
+
 // Re-fetch the suggested Sl No. and GRN No. for the currently selected
 // tab + prefix. Never overwrites a value the person has already typed
 // unless they explicitly click the re-suggest link, or the fields are
 // still empty (e.g. right after selecting a new tab/prefix).
 async function refreshSuggestions(force) {
   const tab = document.getElementById('f-tab').value;
-  const prefix = document.getElementById('f-grn-prefix').value;
+  const prefix = getSelectedPrefix();
   if (!tab) return;
   const result = await jsonp('grnsuggest', { tabName: tab, prefix: prefix });
   if (result && result.status === 'success') {
@@ -408,8 +450,12 @@ async function refreshSuggestions(force) {
   }
 }
 
-document.getElementById('f-tab').addEventListener('change', function() { refreshSuggestions(true); });
+document.getElementById('f-tab').addEventListener('change', async function() {
+  await loadPrefixesForTab(this.value);
+  refreshSuggestions(true);
+});
 document.getElementById('f-grn-prefix').addEventListener('change', function() { refreshSuggestions(true); });
+document.getElementById('f-grn-prefix-custom').addEventListener('input', function() { refreshSuggestions(true); });
 document.getElementById('suggestBtn').addEventListener('click', function() { refreshSuggestions(true); });
 
 // Loads open POs from the shared Drive folder into the PO picker. A
