@@ -281,22 +281,48 @@ document.getElementById('approveBtn').addEventListener('click', async function()
     selected: JSON.stringify(selectedDescriptions),
   });
 
+  // FIX: previously, if the response to this call got lost or garbled on
+  // the way back (slow network, Apps Script response hiccup), the page
+  // showed a scary "something went wrong" error even in cases where the
+  // approval had ACTUALLY succeeded on the backend — genuinely confusing,
+  // since the Sheet would show it correctly verified while the page
+  // insisted it failed. Now ALWAYS re-fetches the real, current status
+  // from the Sheet afterward (loadDetails already does this reliably,
+  // using the same fast targeted lookup) and lets THAT be the source of
+  // truth for what message to show — not just the original response.
+  let successMsg = null;
   if (result && result.status === 'success') {
-    let msg;
     if (result.itemsApproved > 1) {
-      msg = result.itemsApproved + ' item(s) approved.';
+      successMsg = result.itemsApproved + ' item(s) approved.';
     } else if (result.itemsApproved === 1) {
-      msg = 'Item approved.';
+      successMsg = 'Item approved.';
     } else {
-      msg = 'GRN ' + grnParam + ' approved.';
+      successMsg = 'GRN ' + grnParam + ' approved.';
     }
     if (result.itemsSkipped) {
-      msg += ' ' + result.itemsSkipped + ' item(s) left as Pending Verification (not checked).';
+      successMsg += ' ' + result.itemsSkipped + ' item(s) left as Pending Verification (not checked).';
     }
-    showMsg('\u2705 ' + msg + ' Thank you!', 'success');
-    await loadDetails(); // refresh — re-enables the button correctly if items still remain unapproved
+  }
+
+  await loadDetails(); // re-fetch ground truth from the Sheet no matter what the response above said
+
+  const nowAllApproved = selectedDescriptions.every(function(desc) {
+    const match = currentItems.find(function(item) {
+      return String(item.materialDescription || '').trim() === desc;
+    });
+    return match && match.verificationStatus === 'Verified';
+  });
+
+  if (successMsg) {
+    showMsg('\u2705 ' + successMsg + ' Thank you!', 'success');
+  } else if (nowAllApproved) {
+    // The original response looked like a failure, but the Sheet now
+    // shows everything checked IS actually verified — it really did
+    // work, the response just didn't come through cleanly. Trust the
+    // Sheet, not the network hiccup.
+    showMsg('\u2705 Confirmed in the sheet \u2014 your approval went through, even though this page had trouble showing it a moment ago.', 'success');
   } else {
-    showMsg((result && result.message) || 'Something went wrong \u2014 please try again.', 'error');
+    showMsg((result && result.message) || 'Something went wrong \u2014 please check the sheet directly, or try again.', 'error');
     btn.disabled = false;
     btn.textContent = 'Approve';
   }
