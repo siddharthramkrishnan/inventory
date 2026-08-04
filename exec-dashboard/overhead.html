@@ -163,65 +163,60 @@
       </div>
     </header>
 
-    <div class="tab-bar">
-      <button class="tab-btn active" id="tab-btn-overhead" onclick="switchTab('overhead')">Overhead</button>
-      <button class="tab-btn" id="tab-btn-cashoutflow" onclick="switchTab('cashoutflow')">Cash Outflow by Category</button>
-    </div>
+    <div id="pnl-loading" style="text-align:center;color:#999;padding:60px 0;">Loading P&amp;L…</div>
+    <div id="pnl-error" style="display:none;"></div>
 
-    <div id="loading">Loading data…</div>
-    <div id="load-error"></div>
-
-    <div id="content" style="display:none;">
-      <div id="panel-overhead">
-        <div class="kpi-grid" id="kpi-grid"></div>
-
-        <div class="panel">
-          <h2>Category breakdown</h2>
-          <table id="category-table"></table>
-        </div>
-
-        <div class="charts-grid">
-          <div class="panel">
-            <h2>Overhead by category, by month</h2>
-            <div class="legend-row" id="bar-legend"></div>
-            <div class="chart-box"><canvas id="barChart" role="img" aria-label="Stacked bar chart of overhead by category across months"></canvas></div>
+    <div id="pnl-content" style="display:none;">
+      <div class="panel">
+        <h2>P&amp;L Summary (YTD)</h2>
+        <table id="pnl-table"></table>
+        <div class="kpi-grid" style="margin-top:16px;">
+          <div class="kpi-card">
+            <div class="kpi-label">Overhead as % of Revenue</div>
+            <div class="kpi-value" id="pnl-overhead-pct">—</div>
           </div>
-          <div class="panel">
-            <h2>Share of total overhead</h2>
-            <div class="legend-row" id="pie-legend"></div>
-            <div class="chart-box"><canvas id="pieChart" role="img" aria-label="Donut chart of category share of total overhead"></canvas></div>
+          <div class="kpi-card">
+            <div class="kpi-label">Net position</div>
+            <div class="kpi-value" id="pnl-net-position">—</div>
           </div>
-        </div>
-
-        <div class="panel">
-          <h2>Top 5 individual cost lines (YTD)</h2>
-          <table id="top-ledger-table"></table>
         </div>
       </div>
 
-      <div id="panel-cashoutflow" style="display:none;">
-        <div id="cashoutflow-loading" style="text-align:center;color:#999;padding:40px 0;">Loading cash outflow data…</div>
-        <div id="cashoutflow-error" style="display:none;"></div>
-        <div id="cashoutflow-content" style="display:none;">
-          <div class="kpi-grid" id="co-kpi-grid"></div>
-          <div class="panel">
-            <h2>Cash outflow by category</h2>
-            <p style="font-size:12px;color:#b45309;background:#fef3c7;padding:8px 12px;border-radius:6px;margin-bottom:14px;">
-              "Uncategorized" reflects payments that couldn't be traced back to a specific procurement category via bill reference —
-              this is an honest gap in current bookkeeping practice, not a data error. Reducing it requires more consistent bill-wise
-              tracking on the accounts side.
-            </p>
-            <table id="co-category-table"></table>
-          </div>
-          <div class="panel">
-            <h2>Share of cash outflow</h2>
-            <div class="legend-row" id="co-pie-legend"></div>
-            <div class="chart-box"><canvas id="coPieChart" role="img" aria-label="Donut chart of cash outflow share by category"></canvas></div>
-          </div>
-          <div class="panel">
-            <h2>Top vendors by cash outflow (YTD)</h2>
-            <p style="font-size:12px;color:#888;margin-bottom:10px;">Shows exactly which vendors make up each category — useful for spotting which vendors' bills need bill-wise tracking fixed first.</p>
-            <table id="co-vendor-table"></table>
+      <div class="panel" id="overhead-drilldown-panel">
+        <div id="overhead-toggle" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+          <h2 style="margin-bottom:0;">Overhead (Opex) — click to explore breakdown</h2>
+          <span id="overhead-toggle-arrow" style="font-size:13px;color:#888;">▾ Expand</span>
+        </div>
+
+        <div id="overhead-detail" style="display:none;margin-top:20px;">
+          <div id="overhead-loading" style="text-align:center;color:#999;padding:40px 0;">Loading overhead detail…</div>
+          <div id="overhead-error" style="display:none;"></div>
+
+          <div id="overhead-content" style="display:none;">
+            <div class="kpi-grid" id="kpi-grid"></div>
+
+            <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+              <h2>Category breakdown</h2>
+              <table id="category-table"></table>
+            </div>
+
+            <div class="charts-grid">
+              <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+                <h2>Overhead by category, by month</h2>
+                <div class="legend-row" id="bar-legend"></div>
+                <div class="chart-box"><canvas id="barChart" role="img" aria-label="Stacked bar chart of overhead by category across months"></canvas></div>
+              </div>
+              <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+                <h2>Share of total overhead</h2>
+                <div class="legend-row" id="pie-legend"></div>
+                <div class="chart-box"><canvas id="pieChart" role="img" aria-label="Donut chart of category share of total overhead"></canvas></div>
+              </div>
+            </div>
+
+            <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+              <h2>Top 5 individual cost lines (YTD)</h2>
+              <table id="top-ledger-table"></table>
+            </div>
           </div>
         </div>
       </div>
@@ -253,13 +248,13 @@
   }
 
   function handleCredentialResponse(response) {
-    fetchOverheadData(response.credential);
+    fetchPnlData(response.credential);
   }
 
-  function fetchOverheadData(token) {
+  function fetchPnlData(token) {
     window.__lastToken = token;
     document.getElementById('gate-error').style.display = 'none';
-    const callbackName = 'overheadCallback_' + Date.now();
+    const callbackName = 'pnlCallback_' + Date.now();
     window[callbackName] = function (data) {
       delete window[callbackName];
       script.remove();
@@ -267,10 +262,16 @@
         showGateError(data.message || 'Could not load dashboard. Please try again.');
         return;
       }
-      renderDashboard(data);
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('viewer-email').textContent = data.viewer || '';
+      document.getElementById('period-sub').textContent = 'Point-in-time snapshot, current fiscal year to date';
+      document.getElementById('pnl-loading').style.display = 'none';
+      document.getElementById('pnl-content').style.display = 'block';
+      renderPnl(data);
     };
     const script = document.createElement('script');
-    script.src = APPS_SCRIPT_URL + '?action=overhead'
+    script.src = APPS_SCRIPT_URL + '?action=pnl'
       + '&token=' + encodeURIComponent(token)
       + '&callback=' + callbackName;
     script.onerror = function () {
@@ -280,23 +281,86 @@
     document.body.appendChild(script);
   }
 
+  function renderPnl(data) {
+    const l = data.lines;
+    const table = document.getElementById('pnl-table');
+    const rows = [
+      { label: 'Revenue', value: l.revenue, bold: false },
+      { label: '(–) COGS / Direct Costs', value: -l.cogs, bold: false },
+      { label: '= Gross Profit', value: l.grossProfit, bold: true },
+      { label: '(–) Overhead (Opex)', value: -l.overhead, bold: false },
+      { label: '(+) Other Income', value: l.otherIncome, bold: false },
+      { label: '= Net Profit / Loss', value: l.netPnl, bold: true },
+    ];
+    let html = '<tr><th>Line Item</th><th class="num">Amount (INR)</th></tr>';
+    rows.forEach(function (r) {
+      const cls = r.bold ? ' class="total-row"' : '';
+      const color = r.value < 0 && r.bold ? 'color:#c0392b;' : '';
+      html += '<tr' + cls + '><td>' + r.label + '</td><td class="num" style="' + color + '">' + formatINR(r.value) + '</td></tr>';
+    });
+    table.innerHTML = html;
+
+    document.getElementById('pnl-overhead-pct').textContent =
+      data.overheadPctRevenue !== null ? data.overheadPctRevenue.toFixed(1) + '%' : '—';
+
+    const netEl = document.getElementById('pnl-net-position');
+    netEl.textContent = data.isProfitable ? 'Profitable' : 'Loss-making';
+    netEl.style.color = data.isProfitable ? '#1e7e34' : '#c0392b';
+  }
+
+  // ---- Overhead drill-down: lazy-loaded on first click ----
+  let overheadLoaded = false;
+  let overheadExpanded = false;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const toggle = document.getElementById('overhead-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', function () {
+        overheadExpanded = !overheadExpanded;
+        document.getElementById('overhead-detail').style.display = overheadExpanded ? 'block' : 'none';
+        document.getElementById('overhead-toggle-arrow').textContent = overheadExpanded ? '▴ Collapse' : '▾ Expand';
+        if (overheadExpanded && !overheadLoaded) {
+          overheadLoaded = true;
+          fetchOverheadData(window.__lastToken);
+        }
+      });
+    }
+  });
+
+  function fetchOverheadData(token) {
+    const callbackName = 'overheadCallback_' + Date.now();
+    window[callbackName] = function (data) {
+      delete window[callbackName];
+      script.remove();
+      document.getElementById('overhead-loading').style.display = 'none';
+      if (data.status !== 'success') {
+        const errEl = document.getElementById('overhead-error');
+        errEl.textContent = data.message || 'Could not load overhead detail.';
+        errEl.style.display = 'block';
+        return;
+      }
+      document.getElementById('overhead-content').style.display = 'block';
+      renderDashboard(data);
+    };
+    const script = document.createElement('script');
+    script.src = APPS_SCRIPT_URL + '?action=overhead'
+      + '&token=' + encodeURIComponent(token)
+      + '&callback=' + callbackName;
+    script.onerror = function () {
+      delete window[callbackName];
+      document.getElementById('overhead-loading').style.display = 'none';
+      const errEl = document.getElementById('overhead-error');
+      errEl.textContent = 'Could not reach the dashboard service.';
+      errEl.style.display = 'block';
+    };
+    document.body.appendChild(script);
+  }
+
   function renderDashboard(data) {
-    document.getElementById('gate').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'block';
-    document.getElementById('content').style.display = 'block';
-    document.getElementById('viewer-email').textContent = data.viewer || '';
-
-    const months = data.months;
-    const firstLabel = months[0] ? months[0].label : '';
-    const lastLabel = months[months.length - 1] ? months[months.length - 1].label : '';
-    document.getElementById('period-sub').textContent =
-      firstLabel + ' to ' + lastLabel
-      + (data.kpis.currentMonthLabel ? ' (current month in progress, excluded from averages)' : '');
-
     renderKPIs(data.kpis);
     renderCategoryTable(data.categories, data.kpis.totalYTD);
     renderTopLedgerTable(data.topLedgers);
-    renderBarChart(data.categories, months);
+    renderBarChart(data.categories, data.months);
     renderPieChart(data.categories);
   }
 
@@ -403,103 +467,11 @@
     });
   }
 
-  function switchTab(tab) {
-    document.getElementById('tab-btn-overhead').classList.toggle('active', tab === 'overhead');
-    document.getElementById('tab-btn-cashoutflow').classList.toggle('active', tab === 'cashoutflow');
-    document.getElementById('panel-overhead').style.display = tab === 'overhead' ? 'block' : 'none';
-    document.getElementById('panel-cashoutflow').style.display = tab === 'cashoutflow' ? 'block' : 'none';
-
-    if (tab === 'cashoutflow' && !window.__cashoutflowLoaded) {
-      window.__cashoutflowLoaded = true;
-      fetchCashoutflowData(window.__lastToken);
-    }
-  }
-
-  function fetchCashoutflowData(token) {
-    const callbackName = 'cashoutflowCallback_' + Date.now();
-    window[callbackName] = function (data) {
-      delete window[callbackName];
-      script.remove();
-      const loadingEl = document.getElementById('cashoutflow-loading');
-      const errorEl = document.getElementById('cashoutflow-error');
-      const contentEl = document.getElementById('cashoutflow-content');
-      loadingEl.style.display = 'none';
-      if (data.status !== 'success') {
-        errorEl.textContent = data.message || 'Could not load cash outflow data.';
-        errorEl.style.display = 'block';
-        return;
-      }
-      contentEl.style.display = 'block';
-      renderCashoutflow(data);
-    };
-    const script = document.createElement('script');
-    script.src = APPS_SCRIPT_URL + '?action=cashoutflow'
-      + '&token=' + encodeURIComponent(token)
-      + '&callback=' + callbackName;
-    script.onerror = function () {
-      delete window[callbackName];
-      document.getElementById('cashoutflow-loading').style.display = 'none';
-      const errorEl = document.getElementById('cashoutflow-error');
-      errorEl.textContent = 'Could not reach the dashboard service.';
-      errorEl.style.display = 'block';
-    };
-    document.body.appendChild(script);
-  }
-
-  function renderCashoutflow(data) {
-    const grid = document.getElementById('co-kpi-grid');
-    grid.innerHTML =
-      '<div class="kpi-card"><div class="kpi-label">Total cash outflow YTD</div><div class="kpi-value">' + formatINR(data.kpis.totalYTD) + '</div></div>'
-      + '<div class="kpi-card"><div class="kpi-label">Largest tracked category</div><div class="kpi-value">' + data.kpis.largestCategory + '</div></div>'
-      + '<div class="kpi-card"><div class="kpi-label">Uncategorized share</div><div class="kpi-value">' + formatPct(data.kpis.uncategorizedPct) + '</div><div class="kpi-note">Needs bill-wise tracking to close</div></div>';
-
-    const table = document.getElementById('co-category-table');
-    let html = '<tr><th>Category</th><th class="num">Total (INR)</th><th class="num">% of total</th></tr>';
-    data.categories.forEach(function (c) {
-      html += '<tr><td>' + c.name + '</td><td class="num">' + formatINR(c.total) + '</td><td class="num">' + formatPct(c.pctOfTotal) + '</td></tr>';
-    });
-    html += '<tr class="total-row"><td>Total</td><td class="num">' + formatINR(data.kpis.totalYTD) + '</td><td class="num">100.0%</td></tr>';
-    table.innerHTML = html;
-
-    const legend = document.getElementById('co-pie-legend');
-    legend.innerHTML = data.categories.map(function (c, i) {
-      return '<span class="legend-item"><span class="legend-dot" style="background:' + CHART_COLORS[i % CHART_COLORS.length] + '"></span>' + c.name + ' ' + formatPct(c.pctOfTotal) + '</span>';
-    }).join('');
-
-    new Chart(document.getElementById('coPieChart'), {
-      type: 'doughnut',
-      data: {
-        labels: data.categories.map(function (c) { return c.name; }),
-        datasets: [{
-          data: data.categories.map(function (c) { return c.total; }),
-          backgroundColor: data.categories.map(function (_, i) { return CHART_COLORS[i % CHART_COLORS.length]; }),
-          borderWidth: 2,
-          borderColor: '#fff',
-        }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, cutout: '62%',
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: function (ctx) { return ctx.label + ': ' + formatINR(ctx.raw); } } },
-        },
-      },
-    });
-
-    const vendorTable = document.getElementById('co-vendor-table');
-    if (data.topVendors && data.topVendors.length) {
-      let vhtml = '<tr><th>Vendor</th><th>Category</th><th class="num">Total (INR)</th></tr>';
-      data.topVendors.forEach(function (v) {
-        const catBadge = v.category === 'Uncategorized'
-          ? '<span class="badge-progress" style="color:#b45309;background:#fef3c7;">' + v.category + '</span>'
-          : v.category;
-        vhtml += '<tr><td>' + v.vendor + '</td><td>' + catBadge + '</td><td class="num">' + formatINR(v.total) + '</td></tr>';
-      });
-      vendorTable.innerHTML = vhtml;
-    } else {
-      vendorTable.innerHTML = '<tr><td style="color:#999;padding:12px 0;">Vendor detail not loaded yet — add the "CashOutflow Vendor Detail" tab to the Sheet.</td></tr>';
-    }
-  }
+  // Cash Outflow by Category is intentionally shelved for now (per CFO
+  // review) -- procurement data isn't structured enough yet for a
+  // trustworthy CFO-facing view. The backend action still exists
+  // (action=cashoutflow) if this gets revisited later; the frontend
+  // trigger for it has been removed from this page.
 
   window.onload = function () {
     google.accounts.id.initialize({
