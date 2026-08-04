@@ -172,7 +172,7 @@
         <table id="pnl-table"></table>
         <div class="kpi-grid" style="margin-top:16px;">
           <div class="kpi-card">
-            <div class="kpi-label">Overhead as % of Revenue</div>
+            <div class="kpi-label">Overhead as % of Sales Revenue</div>
             <div class="kpi-value" id="pnl-overhead-pct">—</div>
           </div>
           <div class="kpi-card">
@@ -284,28 +284,61 @@
   function renderPnl(data) {
     const l = data.lines;
     const table = document.getElementById('pnl-table');
-    const rows = [
-      { label: 'Revenue', value: l.revenue, bold: false },
-      { label: '(–) COGS / Direct Costs', value: -l.cogs, bold: false },
-      { label: '= Gross Profit', value: l.grossProfit, bold: true },
-      { label: '(–) Overhead (Opex)', value: -l.overhead, bold: false },
-      { label: '(+) Other Income', value: l.otherIncome, bold: false },
-      { label: '= Net Profit / Loss', value: l.netPnl, bold: true },
+
+    const rowDefs = [
+      { key: 'salesRevenue', label: 'Sales Revenue', value: l.salesRevenue, breakdown: data.salesRevenueBreakdown, bold: false },
+      { key: 'cogs', label: '(–) COGS / Direct Costs', value: -l.cogs, breakdown: data.cogsBreakdown, bold: false },
+      { key: 'grossProfit', label: '= Gross Profit (from Sales)', value: l.grossProfit, bold: true },
+      { key: 'overhead', label: '(–) Overhead (Opex)', value: -l.overhead, bold: false, note: 'See Overhead section below for full breakdown' },
+      { key: 'operatingPnl', label: '= Operating Profit/Loss', value: l.operatingPnl, bold: true },
+      { key: 'grantIncome', label: '(+) Grant & Other Income', value: l.grantIncome, breakdown: data.grantIncomeBreakdown, bold: false },
+      { key: 'netPnl', label: '= Net Profit / Loss', value: l.netPnl, bold: true },
     ];
-    let html = '<tr><th>Line Item</th><th class="num">Amount (INR)</th></tr>';
-    rows.forEach(function (r) {
+
+    let html = '<tr><th></th><th>Line Item</th><th class="num">Amount (INR)</th></tr>';
+    rowDefs.forEach(function (r) {
       const cls = r.bold ? ' class="total-row"' : '';
-      const color = r.value < 0 && r.bold ? 'color:#c0392b;' : '';
-      html += '<tr' + cls + '><td>' + r.label + '</td><td class="num" style="' + color + '">' + formatINR(r.value) + '</td></tr>';
+      const color = r.bold && r.value < 0 ? 'color:#c0392b;' : '';
+      const hasBreakdown = r.breakdown && r.breakdown.length > 0;
+      const expandCell = hasBreakdown
+        ? '<span class="pnl-expand-arrow" data-target="pnl-detail-' + r.key + '" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>'
+        : '';
+      html += '<tr' + cls + '><td style="width:20px;">' + expandCell + '</td>'
+        + '<td>' + r.label + (r.note ? '<div style="font-size:11px;color:#999;font-weight:normal;">' + r.note + '</div>' : '') + '</td>'
+        + '<td class="num" style="' + color + '">' + formatINR(r.value) + '</td></tr>';
+      if (hasBreakdown) {
+        html += '<tr id="pnl-detail-' + r.key + '" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(r.breakdown) + '</td></tr>';
+      }
     });
     table.innerHTML = html;
 
+    // Wire up expand/collapse for each drill-down row
+    table.querySelectorAll('.pnl-expand-arrow').forEach(function (el) {
+      el.addEventListener('click', function () {
+        const targetId = el.getAttribute('data-target');
+        const targetRow = document.getElementById(targetId);
+        const isOpen = targetRow.style.display !== 'none';
+        targetRow.style.display = isOpen ? 'none' : 'table-row';
+        el.textContent = isOpen ? '▸' : '▾';
+      });
+    });
+
     document.getElementById('pnl-overhead-pct').textContent =
-      data.overheadPctRevenue !== null ? data.overheadPctRevenue.toFixed(1) + '%' : '—';
+      data.overheadPctSalesRevenue !== null ? data.overheadPctSalesRevenue.toFixed(1) + '%' : '—';
 
     const netEl = document.getElementById('pnl-net-position');
     netEl.textContent = data.isProfitable ? 'Profitable' : 'Loss-making';
     netEl.style.color = data.isProfitable ? '#1e7e34' : '#c0392b';
+  }
+
+  function renderBreakdownSubtable(rows) {
+    let html = '<table style="margin:6px 0 10px 0;background:#fafafa;border-radius:6px;overflow:hidden;">';
+    html += '<tr><th style="font-size:10px;">Source</th><th class="num" style="font-size:10px;">Amount (INR)</th></tr>';
+    rows.forEach(function (r) {
+      html += '<tr><td style="font-size:12px;">' + r.ledger + '</td><td class="num" style="font-size:12px;">' + formatINR(r.total) + '</td></tr>';
+    });
+    html += '</table>';
+    return html;
   }
 
   // ---- Overhead drill-down: lazy-loaded on first click ----
@@ -358,7 +391,7 @@
 
   function renderDashboard(data) {
     renderKPIs(data.kpis);
-    renderCategoryTable(data.categories, data.kpis.totalYTD);
+    renderCategoryTable(data.categories, data.kpis.totalYTD, data.ledgersByCategory);
     renderTopLedgerTable(data.topLedgers);
     renderBarChart(data.categories, data.months);
     renderPieChart(data.categories);
@@ -380,19 +413,36 @@
     }).join('');
   }
 
-  function renderCategoryTable(categories, totalYTD) {
+  function renderCategoryTable(categories, totalYTD, ledgersByCategory) {
     const table = document.getElementById('category-table');
-    let html = '<tr><th>Category</th><th class="num">Total (INR)</th><th class="num">% of total</th><th class="num">Avg/month*</th></tr>';
-    categories.forEach(function (c) {
-      html += '<tr><td>' + c.name + '</td>'
+    let html = '<tr><th style="width:20px;"></th><th>Category</th><th class="num">Total (INR)</th><th class="num">% of total</th><th class="num">Avg/month*</th></tr>';
+    categories.forEach(function (c, i) {
+      const ledgers = (ledgersByCategory && ledgersByCategory[c.name]) || [];
+      const hasLedgers = ledgers.length > 0;
+      const arrow = hasLedgers
+        ? '<span class="cat-expand-arrow" data-target="cat-detail-' + i + '" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>'
+        : '';
+      html += '<tr><td>' + arrow + '</td><td>' + c.name + '</td>'
         + '<td class="num">' + formatINR(c.total) + '</td>'
         + '<td class="num">' + formatPct(c.pctOfTotal) + '</td>'
         + '<td class="num">' + formatINR(c.avgPerMonthExclCurrent) + '</td></tr>';
+      if (hasLedgers) {
+        html += '<tr id="cat-detail-' + i + '" style="display:none;"><td></td><td colspan="3">' + renderBreakdownSubtable(ledgers) + '</td></tr>';
+      }
     });
-    html += '<tr class="total-row"><td>Total overhead</td>'
+    html += '<tr class="total-row"><td></td><td>Total overhead</td>'
       + '<td class="num">' + formatINR(totalYTD) + '</td>'
       + '<td class="num">100.0%</td><td class="num"></td></tr>';
     table.innerHTML = html;
+
+    table.querySelectorAll('.cat-expand-arrow').forEach(function (el) {
+      el.addEventListener('click', function () {
+        const targetRow = document.getElementById(el.getAttribute('data-target'));
+        const isOpen = targetRow.style.display !== 'none';
+        targetRow.style.display = isOpen ? 'none' : 'table-row';
+        el.textContent = isOpen ? '▸' : '▾';
+      });
+    });
   }
 
   function renderTopLedgerTable(ledgers) {
