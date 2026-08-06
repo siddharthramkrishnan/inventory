@@ -284,39 +284,49 @@
   function renderPnl(data) {
     const l = data.lines;
     const table = document.getElementById('pnl-table');
-
-    const rowDefs = [
-      { key: 'salesRevenue', label: 'Sales Revenue', value: l.salesRevenue, breakdown: data.salesRevenueBreakdown, bold: false },
-      { key: 'cogs', label: '(–) COGS / Direct Costs', value: -l.cogs, breakdown: data.cogsBreakdown, bold: false },
-      { key: 'grossProfit', label: '= Gross Profit (from Sales)', value: l.grossProfit, bold: true },
-      { key: 'overhead', label: '(–) Overhead (Opex)', value: -l.overhead, bold: false, note: 'See Overhead section below for full breakdown' },
-      { key: 'operatingPnl', label: '= Operating Profit/Loss', value: l.operatingPnl, bold: true },
-      { key: 'grantIncome', label: '(+) Grant & Other Income', value: l.grantIncome, breakdown: data.grantIncomeBreakdown, bold: false },
-      { key: 'netPnl', label: '= Net Profit / Loss', value: l.netPnl, bold: true },
-    ];
+    const combinedCogsOverhead = l.cogs + l.overhead;
 
     let html = '<tr><th></th><th>Line Item</th><th class="num">Amount (INR)</th></tr>';
-    rowDefs.forEach(function (r) {
-      const cls = r.bold ? ' class="total-row"' : '';
-      const color = r.bold && r.value < 0 ? 'color:#c0392b;' : '';
-      const hasBreakdown = r.breakdown && r.breakdown.length > 0;
-      const expandCell = hasBreakdown
-        ? '<span class="pnl-expand-arrow" data-target="pnl-detail-' + r.key + '" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>'
-        : '';
-      html += '<tr' + cls + '><td style="width:20px;">' + expandCell + '</td>'
-        + '<td>' + r.label + (r.note ? '<div style="font-size:11px;color:#999;font-weight:normal;">' + r.note + '</div>' : '') + '</td>'
-        + '<td class="num" style="' + color + '">' + formatINR(r.value) + '</td></tr>';
-      if (hasBreakdown) {
-        html += '<tr id="pnl-detail-' + r.key + '" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(r.breakdown) + '</td></tr>';
-      }
-    });
+
+    // Sales Revenue
+    const hasSalesBreakdown = data.salesRevenueBreakdown && data.salesRevenueBreakdown.length > 0;
+    html += '<tr><td style="width:20px;">' + (hasSalesBreakdown
+      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-sales" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
+      + '</td><td>Sales Revenue</td><td class="num">' + formatINR(l.salesRevenue) + '</td></tr>';
+    if (hasSalesBreakdown) {
+      html += '<tr id="pnl-detail-sales" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.salesRevenueBreakdown) + '</td></tr>';
+    }
+
+    // Combined COGS + Overhead
+    html += '<tr><td style="width:20px;">'
+      + '<span class="pnl-expand-arrow" data-target="pnl-detail-cogsoverhead" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>'
+      + '</td><td>(–) COGS + Overhead (Opex)</td><td class="num">' + formatINR(-combinedCogsOverhead) + '</td></tr>';
+    html += '<tr id="pnl-detail-cogsoverhead" style="display:none;"><td></td><td colspan="2">'
+      + renderCogsOverheadSubtable(l.cogs, l.overhead, data.cogsBreakdown)
+      + '</td></tr>';
+
+    // Operating Profit/Loss
+    const opColor = l.operatingPnl < 0 ? 'color:#c0392b;' : '';
+    html += '<tr class="total-row"><td></td><td>= Operating Profit/Loss</td><td class="num" style="' + opColor + '">' + formatINR(l.operatingPnl) + '</td></tr>';
+
+    // Grant & Other Income
+    const hasGrantBreakdown = data.grantIncomeBreakdown && data.grantIncomeBreakdown.length > 0;
+    html += '<tr><td style="width:20px;">' + (hasGrantBreakdown
+      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-grant" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
+      + '</td><td>(+) Grant &amp; Other Income</td><td class="num">' + formatINR(l.grantIncome) + '</td></tr>';
+    if (hasGrantBreakdown) {
+      html += '<tr id="pnl-detail-grant" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.grantIncomeBreakdown) + '</td></tr>';
+    }
+
+    // Net Profit/Loss
+    const netColor = l.netPnl < 0 ? 'color:#c0392b;' : '';
+    html += '<tr class="total-row"><td></td><td>= Net Profit / Loss</td><td class="num" style="' + netColor + '">' + formatINR(l.netPnl) + '</td></tr>';
+
     table.innerHTML = html;
 
-    // Wire up expand/collapse for each drill-down row
     table.querySelectorAll('.pnl-expand-arrow').forEach(function (el) {
       el.addEventListener('click', function () {
-        const targetId = el.getAttribute('data-target');
-        const targetRow = document.getElementById(targetId);
+        const targetRow = document.getElementById(el.getAttribute('data-target'));
         const isOpen = targetRow.style.display !== 'none';
         targetRow.style.display = isOpen ? 'none' : 'table-row';
         el.textContent = isOpen ? '▸' : '▾';
@@ -329,6 +339,22 @@
     const netEl = document.getElementById('pnl-net-position');
     netEl.textContent = data.isProfitable ? 'Profitable' : 'Loss-making';
     netEl.style.color = data.isProfitable ? '#1e7e34' : '#c0392b';
+  }
+
+  function renderCogsOverheadSubtable(cogs, overhead, cogsBreakdown) {
+    let html = '<table style="margin:6px 0 10px 0;background:#fafafa;border-radius:6px;overflow:hidden;">';
+    html += '<tr><th style="font-size:10px;"></th><th style="font-size:10px;">Component</th><th class="num" style="font-size:10px;">Amount (INR)</th></tr>';
+    const hasCogsBreakdown = cogsBreakdown && cogsBreakdown.length > 0;
+    html += '<tr><td>' + (hasCogsBreakdown
+      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-cogs-inner" style="cursor:pointer;color:#2a78d6;font-size:11px;">▸</span>' : '')
+      + '</td><td style="font-size:12px;">COGS / Direct Costs</td><td class="num" style="font-size:12px;">' + formatINR(cogs) + '</td></tr>';
+    if (hasCogsBreakdown) {
+      html += '<tr id="pnl-detail-cogs-inner" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(cogsBreakdown) + '</td></tr>';
+    }
+    html += '<tr><td></td><td style="font-size:12px;">Overhead (Opex)</td><td class="num" style="font-size:12px;">' + formatINR(overhead) + '</td></tr>';
+    html += '<tr><td></td><td style="font-size:11px;color:#999;" colspan="2">See Overhead section below for the full category + ledger breakdown</td></tr>';
+    html += '</table>';
+    return html;
   }
 
   function renderBreakdownSubtable(rows) {
