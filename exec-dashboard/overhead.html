@@ -284,7 +284,6 @@
   function renderPnl(data) {
     const l = data.lines;
     const table = document.getElementById('pnl-table');
-    const combinedCogsOverhead = l.cogs + l.overhead;
 
     let html = '<tr><th></th><th>Line Item</th><th class="num">Amount (INR)</th></tr>';
 
@@ -297,19 +296,29 @@
       html += '<tr id="pnl-detail-sales" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.salesRevenueBreakdown) + '</td></tr>';
     }
 
-    // Combined COGS + Overhead
+    // COGS (separate line)
+    const hasCogsBreakdown = data.cogsBreakdown && data.cogsBreakdown.length > 0;
+    html += '<tr><td style="width:20px;">' + (hasCogsBreakdown
+      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-cogs" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
+      + '</td><td>(–) COGS / Direct Costs</td><td class="num">' + formatINR(-l.cogs) + '</td></tr>';
+    if (hasCogsBreakdown) {
+      html += '<tr id="pnl-detail-cogs" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.cogsBreakdown) + '</td></tr>';
+    }
+
+    // Overhead (separate line, one-level expand to category totals, lazy-loaded)
     html += '<tr><td style="width:20px;">'
-      + '<span class="pnl-expand-arrow" data-target="pnl-detail-cogsoverhead" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>'
-      + '</td><td>(–) COGS + Overhead (Opex)</td><td class="num">' + formatINR(-combinedCogsOverhead) + '</td></tr>';
-    html += '<tr id="pnl-detail-cogsoverhead" style="display:none;"><td></td><td colspan="2">'
-      + renderCogsOverheadSubtable(l.cogs, l.overhead, data.cogsBreakdown)
+      + '<span class="pnl-expand-arrow" id="pnl-overhead-expand-arrow" data-target="pnl-detail-overhead" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>'
+      + '</td><td>(–) Overhead (Opex)</td><td class="num">' + formatINR(-l.overhead) + '</td></tr>';
+    html += '<tr id="pnl-detail-overhead" style="display:none;"><td></td><td colspan="2">'
+      + '<div id="pnl-overhead-category-loading" style="font-size:12px;color:#999;padding:8px 0;">Loading category breakdown…</div>'
+      + '<div id="pnl-overhead-category-table"></div>'
       + '</td></tr>';
 
     // Operating Profit/Loss
     const opColor = l.operatingPnl < 0 ? 'color:#c0392b;' : '';
     html += '<tr class="total-row"><td></td><td>= Operating Profit/Loss</td><td class="num" style="' + opColor + '">' + formatINR(l.operatingPnl) + '</td></tr>';
 
-    // Grant & Other Income
+    // Grant & Other Income (kept separate, not merged into revenue)
     const hasGrantBreakdown = data.grantIncomeBreakdown && data.grantIncomeBreakdown.length > 0;
     html += '<tr><td style="width:20px;">' + (hasGrantBreakdown
       ? '<span class="pnl-expand-arrow" data-target="pnl-detail-grant" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
@@ -330,6 +339,11 @@
         const isOpen = targetRow.style.display !== 'none';
         targetRow.style.display = isOpen ? 'none' : 'table-row';
         el.textContent = isOpen ? '▸' : '▾';
+
+        if (el.id === 'pnl-overhead-expand-arrow' && !isOpen && !window.__overheadCategoriesLoaded) {
+          window.__overheadCategoriesLoaded = true;
+          fetchOverheadCategoriesForPnl(window.__lastToken);
+        }
       });
     });
 
@@ -341,20 +355,36 @@
     netEl.style.color = data.isProfitable ? '#1e7e34' : '#c0392b';
   }
 
-  function renderCogsOverheadSubtable(cogs, overhead, cogsBreakdown) {
-    let html = '<table style="margin:6px 0 10px 0;background:#fafafa;border-radius:6px;overflow:hidden;">';
-    html += '<tr><th style="font-size:10px;"></th><th style="font-size:10px;">Component</th><th class="num" style="font-size:10px;">Amount (INR)</th></tr>';
-    const hasCogsBreakdown = cogsBreakdown && cogsBreakdown.length > 0;
-    html += '<tr><td>' + (hasCogsBreakdown
-      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-cogs-inner" style="cursor:pointer;color:#2a78d6;font-size:11px;">▸</span>' : '')
-      + '</td><td style="font-size:12px;">COGS / Direct Costs</td><td class="num" style="font-size:12px;">' + formatINR(cogs) + '</td></tr>';
-    if (hasCogsBreakdown) {
-      html += '<tr id="pnl-detail-cogs-inner" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(cogsBreakdown) + '</td></tr>';
-    }
-    html += '<tr><td></td><td style="font-size:12px;">Overhead (Opex)</td><td class="num" style="font-size:12px;">' + formatINR(overhead) + '</td></tr>';
-    html += '<tr><td></td><td style="font-size:11px;color:#999;" colspan="2">See Overhead section below for the full category + ledger breakdown</td></tr>';
-    html += '</table>';
-    return html;
+  // One-level Overhead expand within the P&L: lazy-fetches the SAME
+  // action=overhead data the full Overhead section below uses, but only
+  // renders category totals here (not the full ledger-level drill-down --
+  // that stays in the Overhead section further down the page).
+  function fetchOverheadCategoriesForPnl(token) {
+    const callbackName = 'pnlOverheadCatCallback_' + Date.now();
+    window[callbackName] = function (data) {
+      delete window[callbackName];
+      script.remove();
+      const loadingEl = document.getElementById('pnl-overhead-category-loading');
+      const tableEl = document.getElementById('pnl-overhead-category-table');
+      loadingEl.style.display = 'none';
+      if (data.status !== 'success') {
+        tableEl.innerHTML = '<div style="font-size:12px;color:#c0392b;">' + (data.message || 'Could not load category breakdown.') + '</div>';
+        return;
+      }
+      const breakdown = data.categories.map(function (c) { return { ledger: c.name, total: c.total }; });
+      tableEl.innerHTML = renderBreakdownSubtable(breakdown);
+    };
+    const script = document.createElement('script');
+    script.src = APPS_SCRIPT_URL + '?action=overhead'
+      + '&token=' + encodeURIComponent(token)
+      + '&callback=' + callbackName;
+    script.onerror = function () {
+      delete window[callbackName];
+      document.getElementById('pnl-overhead-category-loading').style.display = 'none';
+      document.getElementById('pnl-overhead-category-table').innerHTML =
+        '<div style="font-size:12px;color:#c0392b;">Could not reach the dashboard service.</div>';
+    };
+    document.body.appendChild(script);
   }
 
   function renderBreakdownSubtable(rows) {
