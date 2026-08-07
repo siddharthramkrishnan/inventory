@@ -454,18 +454,18 @@ function financialFieldsHtml(ids, basicValue) {
         '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.basic + '" value="' + (basicValue || '') + '" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
       '</div>' +
       '<div style="flex:1;min-width:110px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Discount</label>' +
-        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.discount + '" value="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.discount + '" value="0" placeholder="e.g. 10% or 100" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
       '</div>' +
     '</div>' +
     '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">' +
       '<div style="flex:1;min-width:80px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">CGST</label>' +
-        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.cgst + '" value="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.cgst + '" value="0" placeholder="e.g. 9% or 90" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
       '</div>' +
       '<div style="flex:1;min-width:80px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">SGST</label>' +
-        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.sgst + '" value="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.sgst + '" value="0" placeholder="e.g. 9% or 90" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
       '</div>' +
       '<div style="flex:1;min-width:80px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">IGST</label>' +
-        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.igst + '" value="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.igst + '" value="0" placeholder="e.g. 18% or 180" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
       '</div>' +
     '</div>' +
     '<div style="margin-top:6px">' +
@@ -476,75 +476,140 @@ function financialFieldsHtml(ids, basicValue) {
   );
 }
 
-// Recomputes Total Amount for one financial-field group and validates it:
+// Parses one Discount/CGST/SGST/IGST-style input: a trailing "%" means a
+// percentage (resolved by the caller against a base amount via
+// resolveFinancialAmount() below); anything else is a fixed currency
+// amount. Basic Amount is NOT parsed by this — it stays plain numeric
+// only, per spec (only Discount/CGST/SGST/IGST accept percentages).
+//
+// "10%", " 10 % " -> percentage 10. "100" -> fixed 100. Rejects "abc"
+// (not numeric), "%%"/"10%%" (a second "%" left after stripping the
+// trailing one), and negative numbers either form. Blank input is a
+// fixed 0 (matches the fields' own "0" default).
+function parseFinancialInput(raw, label) {
+  const trimmed = String(raw == null ? '' : raw).trim();
+  if (trimmed === '') return { value: 0, isPercent: false, error: null };
+  const isPercent = trimmed.charAt(trimmed.length - 1) === '%';
+  const numericPart = (isPercent ? trimmed.slice(0, -1) : trimmed).trim();
+  if (numericPart === '' || numericPart.indexOf('%') !== -1) {
+    return { value: 0, isPercent: false, error: label + ' must be a number, optionally followed by "%" (e.g. "10%" or "100").' };
+  }
+  const num = Number(numericPart);
+  if (isNaN(num) || !isFinite(num)) {
+    return { value: 0, isPercent: false, error: label + ' must be a number, optionally followed by "%" (e.g. "10%" or "100").' };
+  }
+  if (num < 0) {
+    return { value: 0, isPercent: false, error: label + ' must be >= 0.' };
+  }
+  return { value: num, isPercent: isPercent, error: null };
+}
+
+// Resolves a parseFinancialInput() result to a currency amount: a
+// percentage is computed against `base` (Basic Amount for Discount,
+// Taxable Amount for CGST/SGST/IGST); a fixed value is used as-is.
+function resolveFinancialAmount(parsed, base) {
+  return parsed.isPercent ? (base * parsed.value / 100) : parsed.value;
+}
+
+// Full parse + resolve + validate pass for one financial-field group,
+// shared by recalcFinancialFields() (drives the live UI) and
+// readFinancialFields() (drives the submitted payload's preview
+// total/gst), so the two can never disagree.
 //   Taxable Amount = Basic Amount - Discount
-//   Total Amount   = Taxable Amount + CGST + SGST   (CGST/SGST case)
-//   Total Amount   = Taxable Amount + IGST           (IGST case)
-// Also enforces mutual exclusivity between CGST/SGST and IGST (Option B —
-// whichever side has a value disables and zeroes the other), so entering
-// both is not possible through the UI. On any validation failure, shows
-// an inline message and leaves Total Amount blank rather than showing a
-// misleading number.
-function recalcFinancialFields(ids) {
-  if (!ids) return;
+//   Total Amount   = Taxable Amount + CGST + SGST + IGST
+// (only one side of CGST/SGST vs IGST can be non-zero — enforced below).
+// "used" flags are computed best-effort even when another field has an
+// error, so the CGST/SGST <-> IGST disable/enable state stays responsive
+// while the person is still typing.
+function computeFinancialValues(ids) {
   const basicEl = document.getElementById(ids.basic);
   const discountEl = document.getElementById(ids.discount);
   const cgstEl = document.getElementById(ids.cgst);
   const sgstEl = document.getElementById(ids.sgst);
   const igstEl = document.getElementById(ids.igst);
+  if (!basicEl || !discountEl || !cgstEl || !sgstEl || !igstEl) return null;
+
+  let error = null;
+
+  const basicRaw = basicEl.value.trim();
+  let basic = 0;
+  if (basicRaw !== '') {
+    basic = Number(basicRaw);
+    if (isNaN(basic) || !isFinite(basic)) { error = 'Basic Amount must be numeric.'; basic = 0; }
+    else if (basic < 0) { error = 'Basic Amount must be >= 0.'; basic = 0; }
+  }
+
+  const discountParsed = parseFinancialInput(discountEl.value, 'Discount');
+  if (!error && discountParsed.error) error = discountParsed.error;
+  const discountAmount = resolveFinancialAmount(discountParsed, basic);
+  if (!error && discountAmount > basic) error = 'Discount exceeds Basic Amount.';
+
+  const taxableAmount = basic - discountAmount;
+
+  const cgstParsed = parseFinancialInput(cgstEl.value, 'CGST');
+  if (!error && cgstParsed.error) error = cgstParsed.error;
+  const sgstParsed = parseFinancialInput(sgstEl.value, 'SGST');
+  if (!error && sgstParsed.error) error = sgstParsed.error;
+  const igstParsed = parseFinancialInput(igstEl.value, 'IGST');
+  if (!error && igstParsed.error) error = igstParsed.error;
+
+  const cgstAmount = resolveFinancialAmount(cgstParsed, taxableAmount);
+  const sgstAmount = resolveFinancialAmount(sgstParsed, taxableAmount);
+  const igstAmount = resolveFinancialAmount(igstParsed, taxableAmount);
+
+  const cgstOrSgstUsed = cgstAmount > 0 || sgstAmount > 0;
+  const igstUsed = igstAmount > 0;
+  if (!error && cgstOrSgstUsed && igstUsed) error = 'Use either CGST + SGST or IGST, not both.';
+
+  const totalAmount = Math.max(taxableAmount + cgstAmount + sgstAmount + igstAmount, 0);
+
+  return {
+    error: error, basic: basic, discountAmount: discountAmount, taxableAmount: taxableAmount,
+    cgstAmount: cgstAmount, sgstAmount: sgstAmount, igstAmount: igstAmount,
+    totalAmount: totalAmount, cgstOrSgstUsed: cgstOrSgstUsed, igstUsed: igstUsed,
+  };
+}
+
+// Recomputes Total Amount for one financial-field group and validates it
+// (see computeFinancialValues() above for the formula). Also enforces
+// mutual exclusivity between CGST/SGST and IGST (Option B — whichever
+// side currently resolves to a real value disables and zeroes the
+// other), so entering both is not possible through the UI. On any
+// validation failure, shows an inline message and leaves Total Amount
+// blank rather than showing a misleading number.
+function recalcFinancialFields(ids) {
+  if (!ids) return;
+  const cgstEl = document.getElementById(ids.cgst);
+  const sgstEl = document.getElementById(ids.sgst);
+  const igstEl = document.getElementById(ids.igst);
   const totalEl = document.getElementById(ids.total);
   const errorEl = document.getElementById(ids.error);
-  if (!basicEl || !discountEl || !cgstEl || !sgstEl || !igstEl || !totalEl) return;
+  if (!cgstEl || !sgstEl || !igstEl || !totalEl) return;
 
-  const isPositive = function(el) {
-    const v = parseFloat(el.value);
-    return el.value.trim() !== '' && !isNaN(v) && v > 0;
-  };
-  const cgstOrSgstEntered = isPositive(cgstEl) || isPositive(sgstEl);
-  const igstEntered = isPositive(igstEl);
+  const result = computeFinancialValues(ids);
+  if (!result) return;
 
-  cgstEl.disabled = igstEntered;
-  sgstEl.disabled = igstEntered;
-  igstEl.disabled = cgstOrSgstEntered;
-  if (igstEntered) { cgstEl.value = '0'; sgstEl.value = '0'; }
-  if (cgstOrSgstEntered) { igstEl.value = '0'; }
-
-  const basic = parseFloat(basicEl.value);
-  const discount = parseFloat(discountEl.value);
-  const cgst = parseFloat(cgstEl.value);
-  const sgst = parseFloat(sgstEl.value);
-  const igst = parseFloat(igstEl.value);
-
-  let error = '';
-  if (basicEl.value.trim() !== '' && isNaN(basic)) error = 'Basic Amount must be a number.';
-  else if (discountEl.value.trim() !== '' && isNaN(discount)) error = 'Discount must be a number.';
-  else if (cgstEl.value.trim() !== '' && isNaN(cgst)) error = 'CGST must be a number.';
-  else if (sgstEl.value.trim() !== '' && isNaN(sgst)) error = 'SGST must be a number.';
-  else if (igstEl.value.trim() !== '' && isNaN(igst)) error = 'IGST must be a number.';
-  else if ((basic || 0) < 0 || (discount || 0) < 0 || (cgst || 0) < 0 || (sgst || 0) < 0 || (igst || 0) < 0) error = 'Values cannot be negative.';
-  else if ((discount || 0) > (basic || 0)) error = 'Discount cannot exceed Basic Amount.';
-  else if (cgstOrSgstEntered && igstEntered) error = 'Use either CGST + SGST or IGST, not both.';
+  cgstEl.disabled = result.igstUsed;
+  sgstEl.disabled = result.igstUsed;
+  igstEl.disabled = result.cgstOrSgstUsed;
+  if (result.igstUsed) { cgstEl.value = '0'; sgstEl.value = '0'; }
+  if (result.cgstOrSgstUsed) { igstEl.value = '0'; }
 
   if (errorEl) {
-    errorEl.style.display = error ? 'block' : 'none';
-    errorEl.textContent = error;
+    errorEl.style.display = result.error ? 'block' : 'none';
+    errorEl.textContent = result.error || '';
   }
 
-  if (error) {
-    totalEl.value = '';
-    return;
-  }
-
-  const taxableAmount = (basic || 0) - (discount || 0);
-  const totalAmount = Math.max(taxableAmount + (cgst || 0) + (sgst || 0) + (igst || 0), 0);
-  totalEl.value = totalAmount.toFixed(2);
+  totalEl.value = result.error ? '' : result.totalAmount.toFixed(2);
 }
 
 // Reads one financial-field group's current values into the shape
-// grnCreate() expects. The legacy "GST" field is still populated, as
-// CGST + SGST + IGST combined, purely so anything already reading that
-// column (existing reports/lookups) keeps working — CGST/SGST/IGST are
-// also sent separately for the new per-tax breakup.
+// grnCreate() expects. Discount/CGST/SGST/IGST are sent as the RAW typed
+// strings (e.g. "10%" or "100") — the backend independently parses and
+// resolves them itself (never trusts this page's own resolution). The
+// legacy "GST" field is still populated, as the resolved CGST + SGST +
+// IGST combined, purely as a preview — the backend recomputes and
+// overwrites it from the same raw values regardless.
 function readFinancialFields(ids) {
   const basicAmount = document.getElementById(ids.basic).value.trim();
   const discount = document.getElementById(ids.discount).value.trim();
@@ -552,7 +617,10 @@ function readFinancialFields(ids) {
   const sgst = document.getElementById(ids.sgst).value.trim();
   const igst = document.getElementById(ids.igst).value.trim();
   const totalAmount = document.getElementById(ids.total).value.trim();
-  const combinedGst = (parseFloat(cgst) || 0) + (parseFloat(sgst) || 0) + (parseFloat(igst) || 0);
+  const result = computeFinancialValues(ids);
+  const combinedGst = result && !result.error
+    ? Math.round((result.cgstAmount + result.sgstAmount + result.igstAmount) * 100) / 100
+    : 0;
   return {
     basicAmount: basicAmount,
     discount: discount,
@@ -560,7 +628,7 @@ function readFinancialFields(ids) {
     sgst: sgst,
     igst: igst,
     totalAmount: totalAmount,
-    gst: combinedGst ? String(Math.round(combinedGst * 100) / 100) : '',
+    gst: combinedGst ? String(combinedGst) : '',
   };
 }
 
