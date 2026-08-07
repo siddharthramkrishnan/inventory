@@ -158,20 +158,11 @@
               <label>Description <span class="hint">What it actually is — will be saved as "[Not on PO] ..." so it's clearly flagged later</span></label>
               <textarea id="f-adhoc-description" rows="2"></textarea>
             </div>
-            <div class="row2">
-              <div class="field">
-                <label>Quantity</label>
-                <input type="text" id="f-adhoc-quantity" placeholder="e.g. 5">
-              </div>
-              <div class="field">
-                <label>Basic Amount</label>
-                <input type="text" id="f-adhoc-basic-amount" placeholder="e.g. 0 if a free sample">
-              </div>
-            </div>
             <div class="field">
-              <label>GST <span class="hint">Type a % to auto-calculate, or the exact amount</span></label>
-              <input type="text" id="f-adhoc-gst" placeholder="e.g. 18% or 0">
+              <label>Quantity</label>
+              <input type="text" id="f-adhoc-quantity" placeholder="e.g. 5">
             </div>
+            <div id="adhocFinancialFields"></div>
           </div>
         </div>
       </div>
@@ -257,7 +248,7 @@
       </div>
 
       <div id="poSelectedNote" class="hint-box" style="display:none">
-        Material, quantity, amount, basic cost, and GST are taken from each checked item above — edit them right there if they differ from the PO. Only "Other Charges" (e.g. freight) below applies to the whole delivery.
+        Material, quantity, amount, basic cost, discount, and CGST/SGST or IGST are taken from each checked item above — edit them right there if they differ from the PO; Total Amount updates automatically. Only "Other Charges" (e.g. freight) below applies to the whole delivery.
       </div>
 
       <div id="manualItemFields">
@@ -440,6 +431,147 @@ document.getElementById('suggestBtn').addEventListener('click', function() { ref
 let activePOsData = [];
 let activePOItemsByCheckboxId = {};
 
+// ============================================================
+// Shared financial fields (Basic Amount / Discount / CGST / SGST / IGST /
+// Total Amount) — used identically by all three item-entry sections
+// (Selected PO Items, Manual Item, Ad-hoc Item) via ONE generator, ONE
+// calculation function, and ONE payload-reader, so the three sections
+// can never drift out of sync with each other.
+// ============================================================
+
+// groupKey -> {basic, discount, cgst, sgst, igst, total, error} element ids
+let financialFieldGroups = {};
+
+// Renders the same six-field markup (Basic Amount, Discount, CGST, SGST,
+// IGST, Total Amount) regardless of which section calls it. `ids` supplies
+// the element ids to use (so each section's ids stay unique on the page);
+// `basicValue` prefills Basic Amount (used by the PO-item section only —
+// Manual/Ad-hoc start blank, matching their existing behavior).
+function financialFieldsHtml(ids, basicValue) {
+  return (
+    '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:110px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Basic Amount</label>' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.basic + '" value="' + (basicValue || '') + '" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+      '</div>' +
+      '<div style="flex:1;min-width:110px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Discount</label>' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.discount + '" value="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:80px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">CGST</label>' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.cgst + '" value="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+      '</div>' +
+      '<div style="flex:1;min-width:80px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">SGST</label>' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.sgst + '" value="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+      '</div>' +
+      '<div style="flex:1;min-width:80px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">IGST</label>' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.igst + '" value="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+      '</div>' +
+    '</div>' +
+    '<div style="margin-top:6px">' +
+      '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Total Amount</label>' +
+      '<input type="text" id="' + ids.total + '" value="" readonly style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px;background:#f0f1ef;color:var(--ink)">' +
+      '<div id="' + ids.error + '" style="font-size:11.5px;color:var(--red);margin-top:3px;display:none"></div>' +
+    '</div>'
+  );
+}
+
+// Recomputes Total Amount for one financial-field group and validates it:
+//   Taxable Amount = Basic Amount - Discount
+//   Total Amount   = Taxable Amount + CGST + SGST   (CGST/SGST case)
+//   Total Amount   = Taxable Amount + IGST           (IGST case)
+// Also enforces mutual exclusivity between CGST/SGST and IGST (Option B —
+// whichever side has a value disables and zeroes the other), so entering
+// both is not possible through the UI. On any validation failure, shows
+// an inline message and leaves Total Amount blank rather than showing a
+// misleading number.
+function recalcFinancialFields(ids) {
+  if (!ids) return;
+  const basicEl = document.getElementById(ids.basic);
+  const discountEl = document.getElementById(ids.discount);
+  const cgstEl = document.getElementById(ids.cgst);
+  const sgstEl = document.getElementById(ids.sgst);
+  const igstEl = document.getElementById(ids.igst);
+  const totalEl = document.getElementById(ids.total);
+  const errorEl = document.getElementById(ids.error);
+  if (!basicEl || !discountEl || !cgstEl || !sgstEl || !igstEl || !totalEl) return;
+
+  const isPositive = function(el) {
+    const v = parseFloat(el.value);
+    return el.value.trim() !== '' && !isNaN(v) && v > 0;
+  };
+  const cgstOrSgstEntered = isPositive(cgstEl) || isPositive(sgstEl);
+  const igstEntered = isPositive(igstEl);
+
+  cgstEl.disabled = igstEntered;
+  sgstEl.disabled = igstEntered;
+  igstEl.disabled = cgstOrSgstEntered;
+  if (igstEntered) { cgstEl.value = '0'; sgstEl.value = '0'; }
+  if (cgstOrSgstEntered) { igstEl.value = '0'; }
+
+  const basic = parseFloat(basicEl.value);
+  const discount = parseFloat(discountEl.value);
+  const cgst = parseFloat(cgstEl.value);
+  const sgst = parseFloat(sgstEl.value);
+  const igst = parseFloat(igstEl.value);
+
+  let error = '';
+  if (basicEl.value.trim() !== '' && isNaN(basic)) error = 'Basic Amount must be a number.';
+  else if (discountEl.value.trim() !== '' && isNaN(discount)) error = 'Discount must be a number.';
+  else if (cgstEl.value.trim() !== '' && isNaN(cgst)) error = 'CGST must be a number.';
+  else if (sgstEl.value.trim() !== '' && isNaN(sgst)) error = 'SGST must be a number.';
+  else if (igstEl.value.trim() !== '' && isNaN(igst)) error = 'IGST must be a number.';
+  else if ((basic || 0) < 0 || (discount || 0) < 0 || (cgst || 0) < 0 || (sgst || 0) < 0 || (igst || 0) < 0) error = 'Values cannot be negative.';
+  else if ((discount || 0) > (basic || 0)) error = 'Discount cannot exceed Basic Amount.';
+  else if (cgstOrSgstEntered && igstEntered) error = 'Use either CGST + SGST or IGST, not both.';
+
+  if (errorEl) {
+    errorEl.style.display = error ? 'block' : 'none';
+    errorEl.textContent = error;
+  }
+
+  if (error) {
+    totalEl.value = '';
+    return;
+  }
+
+  const taxableAmount = (basic || 0) - (discount || 0);
+  const totalAmount = Math.max(taxableAmount + (cgst || 0) + (sgst || 0) + (igst || 0), 0);
+  totalEl.value = totalAmount.toFixed(2);
+}
+
+// Reads one financial-field group's current values into the shape
+// grnCreate() expects. The legacy "GST" field is still populated, as
+// CGST + SGST + IGST combined, purely so anything already reading that
+// column (existing reports/lookups) keeps working — CGST/SGST/IGST are
+// also sent separately for the new per-tax breakup.
+function readFinancialFields(ids) {
+  const basicAmount = document.getElementById(ids.basic).value.trim();
+  const discount = document.getElementById(ids.discount).value.trim();
+  const cgst = document.getElementById(ids.cgst).value.trim();
+  const sgst = document.getElementById(ids.sgst).value.trim();
+  const igst = document.getElementById(ids.igst).value.trim();
+  const totalAmount = document.getElementById(ids.total).value.trim();
+  const combinedGst = (parseFloat(cgst) || 0) + (parseFloat(sgst) || 0) + (parseFloat(igst) || 0);
+  return {
+    basicAmount: basicAmount,
+    discount: discount,
+    cgst: cgst,
+    sgst: sgst,
+    igst: igst,
+    totalAmount: totalAmount,
+    gst: combinedGst ? String(Math.round(combinedGst * 100) / 100) : '',
+  };
+}
+
+// Delegated on the whole form so it works for every financial-field group
+// in all three sections (Selected PO Items, Manual Item, Ad-hoc Item),
+// including ones created after page load (PO items, manual item blocks).
+document.getElementById('grnForm').addEventListener('input', function(e) {
+  if (!e.target.classList || !e.target.classList.contains('grn-financial-input')) return;
+  recalcFinancialFields(financialFieldGroups[e.target.getAttribute('data-group')]);
+});
+
 async function loadActivePOs() {
   const select = document.getElementById('f-po-select');
   const result = await jsonp('activePOs', {});
@@ -518,10 +650,20 @@ document.getElementById('f-po-select').addEventListener('change', function() {
 
   outstandingItems.forEach(function(item, i) {
     const cbId = 'po-item-cb-' + i;
-    const basicId = 'po-item-basic-' + i;
-    const gstId = 'po-item-gst-' + i;
+    const groupKey = cbId;
+    const ids = {
+      group: groupKey,
+      basic: 'po-item-basic-' + i,
+      discount: 'po-item-discount-' + i,
+      cgst: 'po-item-cgst-' + i,
+      sgst: 'po-item-sgst-' + i,
+      igst: 'po-item-igst-' + i,
+      total: 'po-item-total-' + i,
+      error: 'po-item-error-' + i,
+    };
     const qtyId = 'po-item-qty-' + i;
-    activePOItemsByCheckboxId[cbId] = { item: item, basicId: basicId, gstId: gstId, qtyId: qtyId, poNo: po.poNo };
+    financialFieldGroups[groupKey] = ids;
+    activePOItemsByCheckboxId[cbId] = { item: item, qtyId: qtyId, poNo: po.poNo, financialGroupKey: groupKey };
 
     const hasBalanceInfo = item.remainingQty !== undefined;
     const defaultQty = hasBalanceInfo ? item.remainingQty : item.quantity;
@@ -547,18 +689,15 @@ document.getElementById('f-po-select').addEventListener('change', function() {
         '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Quantity received in THIS delivery</label>' +
         '<input type="text" id="' + qtyId + '" value="' + defaultQty + '" style="width:120px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
       '</div>' +
-      // Basic Amount and GST are per-item, not shared across the whole
-      // GRN — different items on the same invoice can have different tax
-      // rates or basic costs. Basic Amount defaults to this item's own
-      // PO amount as a starting guess, editable to match the real invoice.
-      '<div style="display:flex;gap:8px;margin-top:6px">' +
-        '<div style="flex:1"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Basic Amt (this item)</label>' +
-          '<input type="text" id="' + basicId + '" value="' + (item.amount || '') + '" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
-        '</div>' +
-        '<div style="flex:1"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">GST (this item)</label>' +
-          '<input type="text" id="' + gstId + '" placeholder="e.g. 18% (auto-calculates) or 540" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
-        '</div>' +
-      '</div>' +
+      // Basic Amount, Discount, CGST/SGST/IGST are per-item, not shared
+      // across the whole GRN — different items on the same invoice can
+      // have different tax rates, discounts, or basic costs. Same shared
+      // financial-fields block used by the Manual Item and Ad-hoc Item
+      // sections (financialFieldsHtml()) — Basic Amount defaults to this
+      // item's own PO amount as a starting guess, editable to match the
+      // real invoice; Discount/CGST/SGST/IGST default to 0. Total Amount
+      // is derived, never typed directly (see recalcFinancialFields()).
+      financialFieldsHtml(ids, item.amount) +
       // Only relevant once something has already arrived against this
       // item — declares the rest as never coming (vendor short-shipped),
       // rather than it sitting outstanding on this PO forever.
@@ -567,6 +706,13 @@ document.getElementById('f-po-select').addEventListener('change', function() {
         : '') +
       '</div>';
     checklist.appendChild(wrapper);
+    // Initializes Total Amount from the pre-filled Basic Amount and the
+    // 0-defaulted Discount/CGST/SGST/IGST, so it shows a real value
+    // immediately rather than staying blank until the person edits
+    // something. (recalcFinancialFields() and the shared 'input' listener
+    // that calls it on every subsequent change are declared once, near
+    // financialFieldsHtml() above — shared by all three item sections.)
+    recalcFinancialFields(ids);
   });
   itemField.style.display = 'block';
 });
@@ -615,6 +761,22 @@ document.getElementById('f-adhoc-toggle').addEventListener('change', function() 
   document.getElementById('adhocItemFields').style.display = this.checked ? 'block' : 'none';
 });
 
+// Ad-hoc item's financial fields — same shared financial-fields block used
+// by the Selected PO Items and Manual Item sections (financialFieldsHtml()).
+// This section only ever has one item, so its ids/group key are fixed
+// rather than index-generated, matching the rest of this section's static
+// field ids (f-adhoc-description, f-adhoc-quantity, etc.). Populated once
+// at page load — the fields stay in the DOM whether or not the ad-hoc
+// toggle is currently checked, same as the rest of #adhocItemFields.
+const adhocFinancialIds = {
+  group: 'adhoc', basic: 'f-adhoc-basic', discount: 'f-adhoc-discount',
+  cgst: 'f-adhoc-cgst', sgst: 'f-adhoc-sgst', igst: 'f-adhoc-igst',
+  total: 'f-adhoc-total', error: 'f-adhoc-error',
+};
+financialFieldGroups.adhoc = adhocFinancialIds;
+document.getElementById('adhocFinancialFields').innerHTML = financialFieldsHtml(adhocFinancialIds, '');
+recalcFinancialFields(adhocFinancialIds);
+
 // FIX: the manual (no-PO) path used to support only ONE item per
 // submission — a delivery with several items but no PO reference meant
 // submitting this whole form multiple times, retyping the same GRN No.
@@ -628,6 +790,18 @@ function addManualItemBlock() {
   const container = document.getElementById('manualItemsContainer');
   const idx = manualItemCounter++;
   const isFirst = container.children.length === 0;
+  const groupKey = 'manual-' + idx;
+  const ids = {
+    group: groupKey,
+    basic: 'manual-basic-' + idx,
+    discount: 'manual-discount-' + idx,
+    cgst: 'manual-cgst-' + idx,
+    sgst: 'manual-sgst-' + idx,
+    igst: 'manual-igst-' + idx,
+    total: 'manual-total-' + idx,
+    error: 'manual-error-' + idx,
+  };
+  financialFieldGroups[groupKey] = ids;
 
   const block = document.createElement('div');
   block.className = 'manual-item-block';
@@ -651,17 +825,13 @@ function addManualItemBlock() {
         '<input type="text" id="manual-invamt-' + idx + '" placeholder="e.g. 4500.00">' +
       '</div>' +
     '</div>' +
-    '<div class="row2">' +
-      '<div class="field">' +
-        '<label>Basic Amount <span class="hint">Cost before GST</span></label>' +
-        '<input type="text" id="manual-basic-' + idx + '">' +
-      '</div>' +
-      '<div class="field">' +
-        '<label>GST <span class="hint">e.g. 18% (auto-calculates) or 540</span></label>' +
-        '<input type="text" id="manual-gst-' + idx + '">' +
-      '</div>' +
-    '</div>';
+    // Same shared financial-fields block used by the Selected PO Items and
+    // Ad-hoc Item sections (financialFieldsHtml()) — Basic Amount starts
+    // blank here (no PO amount to prefill from), Discount/CGST/SGST/IGST
+    // default to 0, Total Amount is derived.
+    financialFieldsHtml(ids, '');
   container.appendChild(block);
+  recalcFinancialFields(ids); // initializes Total Amount to 0.00
 }
 
 document.getElementById('addManualItemBtn').addEventListener('click', function() { addManualItemBlock(); });
@@ -670,6 +840,7 @@ document.getElementById('addManualItemBtn').addEventListener('click', function()
 document.getElementById('manualItemsContainer').addEventListener('click', function(e) {
   const btn = e.target.closest('.remove-manual-item-btn');
   if (!btn) return;
+  delete financialFieldGroups['manual-' + btn.getAttribute('data-idx')];
   btn.closest('.manual-item-block').remove();
 });
 
@@ -678,25 +849,6 @@ addManualItemBlock(); // always start with one block visible
 loadTabs();
 loadEmployees();
 loadActivePOs();
-
-// If the GST field was typed as a percentage (e.g. "18%"), computes the
-// actual amount from this item's Basic Amount and returns a value like
-// "414 (18% GST)" — self-explanatory later in the sheet, without anyone
-// having to do the math by hand. If it wasn't typed as a percentage
-// (e.g. someone already entered a rupee amount), passes it through as-is.
-function formatGst(gstInput, basicAmount) {
-  const trimmed = String(gstInput || '').trim();
-  if (!trimmed) return '';
-  const pctMatch = trimmed.match(/^(\d+(\.\d+)?)\s*%$/);
-  if (!pctMatch) return trimmed; // not a percentage — leave exactly as typed
-
-  const pct = parseFloat(pctMatch[1]);
-  const basic = parseFloat(basicAmount);
-  if (isNaN(basic)) return trimmed; // no basic amount to compute against — leave as typed
-
-  const amount = Math.round((basic * pct / 100) * 100) / 100; // round to 2 decimals
-  return amount + ' (' + pct + '% GST)';
-}
 
 // FIX: the HTML date picker (<input type="date">) always outputs
 // yyyy-mm-dd internally, regardless of how it's displayed on screen —
@@ -743,69 +895,93 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   // the single Material Description/Quantity fields below, which only
   // support one item.
   const checkedItems = Array.from(document.querySelectorAll('.po-item-checkbox:checked'));
+  const poIsSelected = document.getElementById('f-po-select').value !== '';
+
+  // Loop through every manual item block that has a description filled
+  // in — supports multiple hand-typed items under one GRN No., instead
+  // of forcing a separate form submission per item. Only considered when
+  // no PO items are checked and no PO is selected at all — same condition
+  // the payload-building below has always used.
+  const manualBlocksWithDesc = (checkedItems.length === 0 && !poIsSelected)
+    ? Array.from(document.querySelectorAll('.manual-item-block')).filter(function(block) {
+        const descEl = block.querySelector('textarea[id^="manual-desc-"]');
+        return descEl && descEl.value.trim();
+      })
+    : [];
+
+  // Ad-hoc item: something that arrived alongside a PO's items but isn't
+  // actually one of them (substitution, free sample, etc.) — added on TOP
+  // of whatever PO items were checked, not instead of them.
+  const adhocToggle = document.getElementById('f-adhoc-toggle');
+  const adhocDesc = document.getElementById('f-adhoc-description').value.trim();
+  const adhocActive = adhocToggle.checked && adhocDesc;
+
+  // Validate every financial-field group that will actually be submitted
+  // — Selected PO Items (checked), Manual Item (with a description), and
+  // Ad-hoc Item (if active) — using the SAME recalcFinancialFields() all
+  // three sections share, so none of them can enforce different rules.
+  // Re-checked here (not just relying on the live 'input' listener) so a
+  // stale/blank Total Amount — which only happens when validation is
+  // currently failing for that group — blocks submission instead of
+  // silently sending an incomplete value.
+  const groupsToValidate = checkedItems.map(function(cb) { return cb.id; });
+  manualBlocksWithDesc.forEach(function(block) {
+    const descEl = block.querySelector('textarea[id^="manual-desc-"]');
+    const idx = descEl.id.replace('manual-desc-', '');
+    groupsToValidate.push('manual-' + idx);
+  });
+  if (adhocActive) groupsToValidate.push('adhoc');
+
+  const invalidGroupKey = groupsToValidate.find(function(groupKey) {
+    const ids = financialFieldGroups[groupKey];
+    if (!ids) return false;
+    recalcFinancialFields(ids);
+    const errorEl = document.getElementById(ids.error);
+    return errorEl && errorEl.style.display !== 'none' && errorEl.textContent;
+  });
+  if (invalidGroupKey) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit GRN';
+    showMsg('Please fix the highlighted Basic Amount / Discount / CGST / SGST / IGST value(s) before submitting.', 'error');
+    return;
+  }
 
   let itemPayloads = [];
-  const poIsSelected = document.getElementById('f-po-select').value !== '';
 
   if (checkedItems.length > 0) {
     itemPayloads = checkedItems.map(function(cb) {
       const entry = activePOItemsByCheckboxId[cb.id];
       const item = entry.item;
       const quantity = document.getElementById(entry.qtyId).value.trim();
-      const basicAmount = document.getElementById(entry.basicId).value.trim();
-      const gst = formatGst(document.getElementById(entry.gstId).value.trim(), basicAmount);
       return Object.assign({}, baseData, {
         materialDescription: item.description || '',
         quantity: quantity,
         invoiceAmount: item.amount || '',
-        basicAmount: basicAmount,
-        gst: gst,
-      });
+      }, readFinancialFields(financialFieldGroups[entry.financialGroupKey]));
     });
   } else if (!poIsSelected) {
-    // Loop through every manual item block that has a description filled
-    // in — supports multiple hand-typed items under one GRN No., instead
-    // of forcing a separate form submission per item.
-    const manualBlocks = Array.from(document.querySelectorAll('.manual-item-block'));
-    itemPayloads = manualBlocks
-      .map(function(block) {
-        const descEl = block.querySelector('textarea[id^="manual-desc-"]');
-        const desc = descEl ? descEl.value.trim() : '';
-        if (!desc) return null; // skip blank blocks entirely
-        const idx = descEl.id.replace('manual-desc-', '');
-        const basicAmount = document.getElementById('manual-basic-' + idx).value.trim();
-        return Object.assign({}, baseData, {
-          materialDescription: desc,
-          quantity: document.getElementById('manual-qty-' + idx).value.trim(),
-          invoiceAmount: document.getElementById('manual-invamt-' + idx).value.trim(),
-          basicAmount: basicAmount,
-          gst: formatGst(document.getElementById('manual-gst-' + idx).value.trim(), basicAmount),
-        });
-      })
-      .filter(function(p) { return p !== null; });
+    itemPayloads = manualBlocksWithDesc.map(function(block) {
+      const descEl = block.querySelector('textarea[id^="manual-desc-"]');
+      const desc = descEl.value.trim();
+      const idx = descEl.id.replace('manual-desc-', '');
+      return Object.assign({}, baseData, {
+        materialDescription: desc,
+        quantity: document.getElementById('manual-qty-' + idx).value.trim(),
+        invoiceAmount: document.getElementById('manual-invamt-' + idx).value.trim(),
+      }, readFinancialFields(financialFieldGroups['manual-' + idx]));
+    });
   }
   // If a PO IS selected but nothing was checked, itemPayloads starts
   // empty here — that's fine as long as the ad-hoc section below has
   // something in it; otherwise the "at least one item" check further
   // down will correctly stop the submission.
 
-  // Ad-hoc item: something that arrived alongside a PO's items but isn't
-  // actually one of them (substitution, free sample, etc.) — added on
-  // TOP of whatever PO items were checked, not instead of them. Prefixed
-  // so it's obviously flagged when scanning the sheet later.
-  const adhocToggle = document.getElementById('f-adhoc-toggle');
-  if (adhocToggle.checked) {
-    const adhocDesc = document.getElementById('f-adhoc-description').value.trim();
-    if (adhocDesc) {
-      const adhocBasic = document.getElementById('f-adhoc-basic-amount').value.trim();
-      itemPayloads.push(Object.assign({}, baseData, {
-        materialDescription: '[Not on PO] ' + adhocDesc,
-        quantity: document.getElementById('f-adhoc-quantity').value.trim(),
-        invoiceAmount: '',
-        basicAmount: adhocBasic,
-        gst: formatGst(document.getElementById('f-adhoc-gst').value.trim(), adhocBasic),
-      }));
-    }
+  if (adhocActive) {
+    itemPayloads.push(Object.assign({}, baseData, {
+      materialDescription: '[Not on PO] ' + adhocDesc,
+      quantity: document.getElementById('f-adhoc-quantity').value.trim(),
+      invoiceAmount: '',
+    }, readFinancialFields(financialFieldGroups.adhoc)));
   }
 
   if (itemPayloads.length === 0) {
