@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Achira Labs — Overhead Dashboard</title>
+<title>Achira Labs — Financial Dashboard</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -145,7 +145,7 @@
 <div class="wrap">
 
   <div id="gate">
-    <h1>Achira Labs — Overhead Dashboard</h1>
+    <h1>Achira Labs — Financial Dashboard</h1>
     <p class="sub">Sign in with your Achira Google account to continue.</p>
     <div id="signin-area"></div>
     <div id="gate-error"></div>
@@ -172,7 +172,7 @@
         <table id="pnl-table"></table>
         <div class="kpi-grid" style="margin-top:16px;">
           <div class="kpi-card">
-            <div class="kpi-label">Overhead as % of Sales Revenue</div>
+            <div class="kpi-label">Indirect Expense as % of Sales Revenue</div>
             <div class="kpi-value" id="pnl-overhead-pct">—</div>
           </div>
           <div class="kpi-card">
@@ -184,7 +184,7 @@
 
       <div class="panel" id="overhead-drilldown-panel">
         <div id="overhead-toggle" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-          <h2 style="margin-bottom:0;">Overhead (Opex) — click to explore breakdown</h2>
+          <h2 style="margin-bottom:0;">Indirect Expense — click to explore breakdown</h2>
           <span id="overhead-toggle-arrow" style="font-size:13px;color:#888;">▾ Expand</span>
         </div>
 
@@ -202,14 +202,14 @@
 
             <div class="charts-grid">
               <div class="panel" style="box-shadow:none;border:1px solid #eee;">
-                <h2>Overhead by category, by month</h2>
+                <h2>Indirect Expense by category, by month</h2>
                 <div class="legend-row" id="bar-legend"></div>
-                <div class="chart-box"><canvas id="barChart" role="img" aria-label="Stacked bar chart of overhead by category across months"></canvas></div>
+                <div class="chart-box"><canvas id="barChart" role="img" aria-label="Stacked bar chart of indirect expense by category across months"></canvas></div>
               </div>
               <div class="panel" style="box-shadow:none;border:1px solid #eee;">
-                <h2>Share of total overhead</h2>
+                <h2>Share of total indirect expense</h2>
                 <div class="legend-row" id="pie-legend"></div>
-                <div class="chart-box"><canvas id="pieChart" role="img" aria-label="Donut chart of category share of total overhead"></canvas></div>
+                <div class="chart-box"><canvas id="pieChart" role="img" aria-label="Donut chart of category share of total indirect expense"></canvas></div>
               </div>
             </div>
 
@@ -308,7 +308,7 @@
     // Overhead (separate line, one-level expand to category totals, lazy-loaded)
     html += '<tr><td style="width:20px;">'
       + '<span class="pnl-expand-arrow" id="pnl-overhead-expand-arrow" data-target="pnl-detail-overhead" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>'
-      + '</td><td>(–) Overhead (Opex)</td><td class="num">' + formatINR(-l.overhead) + '</td></tr>';
+      + '</td><td>(–) Indirect Expense</td><td class="num">' + formatINR(-l.overhead) + '</td></tr>';
     html += '<tr id="pnl-detail-overhead" style="display:none;"><td></td><td colspan="2">'
       + '<div id="pnl-overhead-category-loading" style="font-size:12px;color:#999;padding:8px 0;">Loading category breakdown…</div>'
       + '<div id="pnl-overhead-category-table"></div>'
@@ -456,7 +456,7 @@
   function renderKPIs(kpis) {
     const grid = document.getElementById('kpi-grid');
     const cards = [
-      { label: 'Total overhead YTD', value: formatINR(kpis.totalYTD), note: '' },
+      { label: 'Total indirect expense YTD', value: formatINR(kpis.totalYTD), note: '' },
       { label: 'Avg monthly run-rate', value: formatINR(kpis.avgMonthlyRunRate), note: 'Excludes current month' },
       { label: 'Projected FY total', value: formatINR(kpis.projectedFYTotal), note: 'Run-rate x 12' },
       { label: 'Largest category', value: kpis.largestCategory, note: '' },
@@ -486,7 +486,7 @@
         html += '<tr id="cat-detail-' + i + '" style="display:none;"><td></td><td colspan="3">' + renderBreakdownSubtable(ledgers) + '</td></tr>';
       }
     });
-    html += '<tr class="total-row"><td></td><td>Total overhead</td>'
+    html += '<tr class="total-row"><td></td><td>Total indirect expense</td>'
       + '<td class="num">' + formatINR(totalYTD) + '</td>'
       + '<td class="num">100.0%</td><td class="num"></td></tr>';
     table.innerHTML = html;
