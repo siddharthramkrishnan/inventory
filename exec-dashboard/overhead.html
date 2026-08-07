@@ -287,6 +287,15 @@
 
     let html = '<tr><th></th><th>Line Item</th><th class="num">Amount (INR)</th></tr>';
 
+    // Grant & Other Income (now shown FIRST, above Sales -- per Bhupal/Katti decision)
+    const hasGrantBreakdown = data.grantIncomeBreakdown && data.grantIncomeBreakdown.length > 0;
+    html += '<tr><td style="width:20px;">' + (hasGrantBreakdown
+      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-grant" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
+      + '</td><td>Grant &amp; Other Income</td><td class="num">' + formatINR(l.grantIncome) + '</td></tr>';
+    if (hasGrantBreakdown) {
+      html += '<tr id="pnl-detail-grant" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.grantIncomeBreakdown) + '</td></tr>';
+    }
+
     // Sales Revenue
     const hasSalesBreakdown = data.salesRevenueBreakdown && data.salesRevenueBreakdown.length > 0;
     html += '<tr><td style="width:20px;">' + (hasSalesBreakdown
@@ -296,7 +305,10 @@
       html += '<tr id="pnl-detail-sales" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.salesRevenueBreakdown) + '</td></tr>';
     }
 
-    // COGS (separate line)
+    // Total Income subtotal
+    html += '<tr class="total-row"><td></td><td>= Total Income</td><td class="num">' + formatINR(l.totalIncome) + '</td></tr>';
+
+    // COGS
     const hasCogsBreakdown = data.cogsBreakdown && data.cogsBreakdown.length > 0;
     html += '<tr><td style="width:20px;">' + (hasCogsBreakdown
       ? '<span class="pnl-expand-arrow" data-target="pnl-detail-cogs" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
@@ -314,20 +326,7 @@
       + '<div id="pnl-overhead-category-table"></div>'
       + '</td></tr>';
 
-    // Operating Profit/Loss
-    const opColor = l.operatingPnl < 0 ? 'color:#c0392b;' : '';
-    html += '<tr class="total-row"><td></td><td>= Operating Profit/Loss</td><td class="num" style="' + opColor + '">' + formatINR(l.operatingPnl) + '</td></tr>';
-
-    // Grant & Other Income (kept separate, not merged into revenue)
-    const hasGrantBreakdown = data.grantIncomeBreakdown && data.grantIncomeBreakdown.length > 0;
-    html += '<tr><td style="width:20px;">' + (hasGrantBreakdown
-      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-grant" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
-      + '</td><td>(+) Grant &amp; Other Income</td><td class="num">' + formatINR(l.grantIncome) + '</td></tr>';
-    if (hasGrantBreakdown) {
-      html += '<tr id="pnl-detail-grant" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.grantIncomeBreakdown) + '</td></tr>';
-    }
-
-    // Net Profit/Loss
+    // Net Profit/Loss (straight from Total Income, no separate Operating P&L step)
     const netColor = l.netPnl < 0 ? 'color:#c0392b;' : '';
     html += '<tr class="total-row"><td></td><td>= Net Profit / Loss</td><td class="num" style="' + netColor + '">' + formatINR(l.netPnl) + '</td></tr>';
 
