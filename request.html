@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Material Request — Achira Labs</title>
+<title>Achira Inventory - Material Request</title>
 <style>
   :root {
     --blue:      #1A3C6E;
@@ -42,6 +42,18 @@
     z-index: 100;
     box-shadow: 0 2px 12px rgba(0,0,0,0.2);
   }
+  .home-nav-link {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(255,255,255,0.18);
+    padding: 3px 10px;
+    border-radius: 20px;
+    text-decoration: none;
+    margin-bottom: 8px;
+  }
+  .home-nav-link:hover { background: rgba(255,255,255,0.28); }
   .header-top { display: flex; align-items: center; gap: 10px; }
   .header-logo {
     width: 36px; height: 36px;
@@ -275,6 +287,7 @@
 <body>
 
 <div class="header">
+  <a href="home.html" class="home-nav-link">← Home</a>
   <div class="header-top">
     <div class="header-logo">
       <svg viewBox="0 0 24 24" fill="none">

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Achira Inventory Management</title>
+<style>
+  :root{
+    --ink:#16211f;
+    --paper:#f6f7f5;
+    --card:#ffffff;
+    --accent:#1f5f52;
+    --accent-dark:#153f37;
+    --line:#dde3e0;
+    --muted:#5c6b67;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  header{
+    background:var(--accent-dark);
+    color:#fff;
+    padding:22px 18px 20px;
+  }
+  header h1{ margin:0; font-size:19px; font-weight:700; }
+  header p{ margin:4px 0 0; font-size:13px; color:#cfe0da; }
+  .wrap{ max-width:1400px; margin:0 auto; padding:24px 28px 60px; }
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px 24px;
+    margin-bottom:22px;
+  }
+  .section-title{
+    font-size:13px;
+    font-weight:700;
+    color:var(--accent-dark);
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    margin:0 0 12px;
+  }
+  .nav-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:18px;
+  }
+  @media (max-width:1000px){
+    .nav-grid{ grid-template-columns:repeat(2, 1fr); }
+  }
+  @media (max-width:640px){
+    .nav-grid{ grid-template-columns:repeat(1, 1fr); }
+  }
+  .nav-card{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:18px;
+    text-decoration:none;
+    color:var(--ink);
+  }
+  .nav-card:hover{ border-color:var(--accent); background:#f3f6f5; }
+  .nav-card-current{
+    border-color:var(--accent);
+    background:#eef6f4;
+    box-shadow:0 0 0 1px var(--accent) inset;
+  }
+  .home-footer{
+    text-align:center;
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.6;
+    margin-top:8px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+  }
+  .nav-card-icon{ font-size:22px; line-height:1; }
+  .nav-card-title{ font-size:14px; font-weight:700; margin-top:4px; }
+  .nav-card-desc{ font-size:12px; color:var(--muted); line-height:1.4; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏠 Achira Labs</h1>
+  <p>Inventory &amp; Operations · Home</p>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <p class="section-title">Inventory</p>
+    <div class="nav-grid">
+      <a class="nav-card" href="index.html">
+        <div class="nav-card-icon">📦</div>
+        <div class="nav-card-title">Inventory Adjustment</div>
+        <div class="nav-card-desc">Log stock in/out, transfers, and recounts.</div>
+      </a>
+      <a class="nav-card" href="request.html">
+        <div class="nav-card-icon">📝</div>
+        <div class="nav-card-title">Material Request</div>
+        <div class="nav-card-desc">Request an item from the store.</div>
+      </a>
+      <a class="nav-card" href="arn-assign.html">
+        <div class="nav-card-icon">🏷️</div>
+        <div class="nav-card-title">ARN Management</div>
+        <div class="nav-card-desc">Assign ARNs to new items, approve or reject pending ones.</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="section-title">GRN</p>
+    <div class="nav-grid">
+      <a class="nav-card" href="grn-entry.html">
+        <div class="nav-card-icon">📋</div>
+        <div class="nav-card-title">Create GRN</div>
+        <div class="nav-card-desc">Log a delivery against a PO, or manually.</div>
+      </a>
+      <a class="nav-card" href="grn-verify.html">
+        <div class="nav-card-icon">✅</div>
+        <div class="nav-card-title">Verify GRNs</div>
+        <div class="nav-card-desc">Review and approve a GRN — normally opened from the Slack notification link for a specific delivery.</div>
+      </a>
+      <a class="nav-card" href="grn-search.html">
+        <div class="nav-card-icon">🔍</div>
+        <div class="nav-card-title">Search &amp; History</div>
+        <div class="nav-card-desc">Search, filter, export and print GRN history.</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="home-footer">
+    Achira Inventory Management<br>
+    Version 1.0
+  </div>
+
+</div>
+
+<script>
+// Highlights whichever card corresponds to the page the person just came
+// from, using document.referrer — the browser already provides this on a
+// normal link-click navigation, so this needs no query params and no
+// state shared/duplicated across the other pages (none of them are
+// modified for this). Silently does nothing if there's no referrer (a
+// fresh tab, a typed URL, or a bookmark) or if it doesn't match a known
+// module — the cards themselves are never disabled either way.
+(function highlightCurrentModule() {
+  if (!document.referrer) return;
+  let filename;
+  try {
+    filename = new URL(document.referrer).pathname.split('/').pop();
+  } catch (e) {
+    return;
+  }
+  if (!filename) return;
+  document.querySelectorAll('.nav-card').forEach(function(card) {
+    const hrefFilename = (card.getAttribute('href') || '').split('/').pop();
+    if (hrefFilename === filename) card.classList.add('nav-card-current');
+  });
+})();
+</script>
+</body>
+</html>

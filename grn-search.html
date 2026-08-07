@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Achira Inventory - Search & History</title>
+<style>
+  :root{
+    --ink:#16211f;
+    --paper:#f6f7f5;
+    --card:#ffffff;
+    --accent:#1f5f52;
+    --accent-dark:#153f37;
+    --line:#dde3e0;
+    --muted:#5c6b67;
+    --amber:#a5690c;
+    --amber-bg:#fdf3e2;
+    --green:#1e7a44;
+    --green-bg:#e7f5ec;
+    --red:#b3312c;
+    --red-bg:#fbe9e8;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  header{
+    background:var(--accent-dark);
+    color:#fff;
+    padding:22px 18px 20px;
+  }
+  header h1{ margin:0; font-size:19px; font-weight:700; }
+  header p{ margin:4px 0 0; font-size:13px; color:#cfe0da; }
+  .home-nav-link{
+    display:inline-block;
+    font-size:12px;
+    font-weight:600;
+    color:#fff;
+    background:rgba(255,255,255,0.18);
+    padding:3px 10px;
+    border-radius:20px;
+    text-decoration:none;
+    margin-bottom:8px;
+  }
+  .home-nav-link:hover{ background:rgba(255,255,255,0.28); }
+  .wrap{ max-width:960px; margin:0 auto; padding:16px 14px 60px; }
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .section-title{
+    font-size:13px;
+    font-weight:700;
+    color:var(--accent-dark);
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    margin:0 0 12px;
+  }
+  .filters-toggle{
+    display:block;
+    width:100%;
+    text-align:left;
+    background:none;
+    border:none;
+    padding:12px 0 4px;
+    margin:4px 0 0;
+    font-size:13px;
+    font-weight:700;
+    color:var(--accent-dark);
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    cursor:pointer;
+  }
+  .field{ margin-bottom:14px; }
+  .field:last-child{ margin-bottom:0; }
+  label{ display:block; font-size:13px; font-weight:600; margin-bottom:5px; }
+  input[type="text"], input[type="date"], select{
+    width:100%;
+    padding:10px 11px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:14px;
+    font-family:inherit;
+    background:#fff;
+    color:var(--ink);
+  }
+  input:focus, select:focus{ outline:none; border-color:var(--accent); }
+  .row2{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .row4{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-top:14px; }
+  @media (max-width:640px){
+    .row2{ grid-template-columns:1fr; }
+    .row4{ grid-template-columns:1fr 1fr; }
+  }
+  hr.sep{ border:none; border-top:1px dashed var(--line); margin:16px 0 2px; }
+  button.search{
+    width:100%;
+    padding:14px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    margin-top:16px;
+  }
+  button.search:disabled{ opacity:0.6; cursor:default; }
+  button.secondary{
+    padding:9px 14px;
+    background:#fff;
+    color:var(--accent);
+    border:1px solid var(--accent);
+    border-radius:8px;
+    font-size:13px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  button.secondary:disabled{ opacity:0.5; cursor:default; }
+  button.mini{
+    padding:4px 9px;
+    background:#fff;
+    color:var(--accent);
+    border:1px solid var(--line);
+    border-radius:6px;
+    font-size:11.5px;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  button.mini:hover{ border-color:var(--accent); }
+  button.mini.danger{ color:var(--red); }
+  .msg{
+    padding:12px 14px;
+    border-radius:8px;
+    font-size:13px;
+    margin-bottom:16px;
+    display:none;
+  }
+  .msg.success{ background:var(--green-bg); color:var(--green); display:block; }
+  .msg.error{ background:var(--red-bg); color:var(--red); display:block; }
+  .status-badge{
+    display:inline-block;
+    font-size:12px;
+    font-weight:700;
+    padding:3px 10px;
+    border-radius:20px;
+    white-space:nowrap;
+  }
+  .status-badge.pending{ background:var(--amber-bg); color:var(--amber); }
+  .status-badge.verified{ background:var(--green-bg); color:var(--green); }
+  .results-toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:6px;
+  }
+  .results-toolbar-right{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  #resultsCount{ font-size:12.5px; color:var(--muted); }
+  #resultsSummary{
+    font-size:12.5px;
+    color:var(--muted);
+    margin-bottom:12px;
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  #resultsSummary b{ color:var(--ink); }
+  .sort-field{ display:flex; align-items:center; gap:8px; }
+  .sort-field label{ margin:0; font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap; }
+  .sort-field select{ width:auto; padding:6px 8px; font-size:13px; }
+  table.results{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  table.results th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.3px;
+    color:var(--muted);
+    padding:8px 8px;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  table.results td{
+    padding:10px 8px;
+    border-bottom:1px solid #eef1f0;
+    vertical-align:top;
+    white-space:nowrap;
+  }
+  table.results tr.result-row{ cursor:pointer; }
+  table.results tr.result-row:hover td{ background:#f3f6f5; }
+  .action-cell{ display:flex; gap:6px; }
+  #resultsWrap{ overflow-x:auto; }
+  .row{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    padding:9px 0;
+    border-bottom:1px solid #eef1f0;
+    font-size:14px;
+  }
+  .row:last-child{ border-bottom:none; }
+  .row .label{ color:var(--muted); flex-shrink:0; }
+  .row .value{ text-align:right; font-weight:600; }
+  .back-link{
+    display:inline-block;
+    margin-bottom:14px;
+    font-size:13px;
+    color:var(--accent);
+    text-decoration:underline;
+    cursor:pointer;
+    background:none;
+    border:none;
+    padding:0;
+  }
+  .detail-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  table.items{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+    margin-top:8px;
+  }
+  table.items th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.3px;
+    color:var(--muted);
+    padding:6px 6px;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  table.items td{
+    padding:8px 6px;
+    border-bottom:1px solid #eef1f0;
+    white-space:nowrap;
+  }
+  #loading{ padding:20px 0; text-align:center; color:var(--muted); font-size:14px; display:none; }
+
+  /* Print-only area: hidden on screen, shown (and everything else
+     hidden) only when printing — used both by the detail page's own
+     Print button and the results table's per-row Print action, so
+     neither needs to navigate the visible page away from wherever the
+     person currently is. */
+  #printArea{ display:none; }
+  @media print{
+    body > *:not(#printArea){ display:none !important; }
+    #printArea{ display:block !important; }
+    @page{ size:A4; margin:15mm; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <a href="home.html" class="home-nav-link">← Home</a>
+  <h1>🔍 GRN Search &amp; History</h1>
+  <p>Achira Labs · Find and view a Goods Receipt Note</p>
+</header>
+
+<div class="wrap">
+  <div id="msg" class="msg"></div>
+
+  <div class="card" id="searchCard">
+    <p class="section-title">Search</p>
+    <div class="field">
+      <input type="text" id="f-query" placeholder="Search by GRN Number, PO Number or Material Description">
+    </div>
+
+    <button type="button" class="filters-toggle" id="filtersToggle">▶ Filters</button>
+    <div class="row4" id="filtersPanel" style="display:none">
+      <div class="field">
+        <label>Verification Status</label>
+        <select id="f-status">
+          <option value="">All</option>
+          <option value="pending">Pending</option>
+          <option value="verified">Verified</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select id="f-category">
+          <option value="">All Categories</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Date From</label>
+        <input type="date" id="f-date-from">
+      </div>
+      <div class="field">
+        <label>Date To</label>
+        <input type="date" id="f-date-to">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="button" class="search" id="searchBtn" style="margin-top:0;flex:1">Search</button>
+      <button type="button" class="secondary" id="clearFiltersBtn" style="flex:0 0 auto">Clear Filters</button>
+    </div>
+  </div>
+
+  <div id="loading">Searching…</div>
+
+  <div class="card" id="resultsCard" style="display:none">
+    <div class="results-toolbar">
+      <p class="section-title" style="margin:0">Results</p>
+      <div class="results-toolbar-right">
+        <div class="sort-field">
+          <label for="f-sort">Sort by</label>
+          <select id="f-sort">
+            <option value="grnDate-desc">GRN Date (Newest first)</option>
+            <option value="grnDate-asc">GRN Date (Oldest first)</option>
+            <option value="grnNo-asc">GRN Number (A→Z)</option>
+            <option value="grnNo-desc">GRN Number (Z→A)</option>
+            <option value="vendor-asc">Vendor (A→Z)</option>
+            <option value="vendor-desc">Vendor (Z→A)</option>
+            <option value="status-asc">Verification Status</option>
+          </select>
+        </div>
+        <button type="button" class="secondary" id="exportBtn">⬇ Export to Excel</button>
+      </div>
+    </div>
+    <div id="resultsCount"></div>
+    <div id="resultsSummary"></div>
+    <div id="resultsWrap">
+      <table class="results">
+        <thead>
+          <tr>
+            <th>GRN No.</th>
+            <th>GRN Date</th>
+            <th>PO No.</th>
+            <th>Vendor</th>
+            <th>Material</th>
+            <th>Qty</th>
+            <th>Status</th>
+            <th>Verified By</th>
+            <th>Total Amount</th>
+            <th>Category</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="detailCard" style="display:none">
+    <button type="button" class="back-link" id="backBtn">&larr; Back to results</button>
+    <p class="section-title">GRN Details</p>
+    <div class="detail-actions">
+      <button type="button" class="secondary" id="printDetailBtn">🖨 Print</button>
+      <button type="button" class="mini copy-btn" id="copyGrnBtn">Copy GRN Number</button>
+      <button type="button" class="mini copy-btn" id="copyPoBtn">Copy PO Number</button>
+    </div>
+    <div id="detailHeader"></div>
+    <p class="section-title" style="margin-top:18px">Material Details</p>
+    <div style="overflow-x:auto">
+      <table class="items">
+        <thead>
+          <tr>
+            <th>Material Description</th>
+            <th>Qty</th>
+            <th>Unit</th>
+            <th>Basic Amt</th>
+            <th>Discount</th>
+            <th>CGST</th>
+            <th>SGST</th>
+            <th>IGST</th>
+            <th>GST</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="detailItemsBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="printArea"></div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec';
+
+function jsonp(action, params) {
+  return new Promise(function(resolve) {
+    const callbackName = 'cb_' + action + '_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    let qs = 'action=' + action + '&callback=' + callbackName;
+    for (const k in params) {
+      qs += '&' + k + '=' + encodeURIComponent(params[k]);
+    }
+    window[callbackName] = function(result) {
+      delete window[callbackName];
+      document.body.removeChild(script);
+      resolve(result);
+    };
+    const script = document.createElement('script');
+    script.src = APPS_SCRIPT_URL + '?' + qs;
+    script.onerror = function() {
+      delete window[callbackName];
+      if (document.body.contains(script)) document.body.removeChild(script);
+      resolve(null);
+    };
+    document.body.appendChild(script);
+  });
+}
+
+function showMsg(text, type) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg ' + (type || '');
+}
+
+function row(label, value) {
+  return '<div class="row"><span class="label">' + label + '</span><span class="value">' + (value || '—') + '</span></div>';
+}
+
+function statusBadge(status) {
+  const isVerified = status === 'Verified';
+  return '<span class="status-badge ' + (isVerified ? 'verified' : 'pending') + '">' + (status || 'Pending Verification') + '</span>';
+}
+
+function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+// Same dd/mm/yyyy-aware parsing the backend uses (parseGrnRecordDate() in
+// Code.gs) — a stored GRN date can be a real Date (serialized to an ISO
+// string over JSON) or a "dd/mm/yyyy" string, and plain `new Date(...)`
+// would misread "06/08/2026" as June 8th instead of 6th August.
+function grnDateSortValue(raw) {
+  if (!raw) return 0;
+  const s = String(raw);
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) {
+    const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+const SORT_COMPARATORS = {
+  'grnDate-desc': function(a, b) { return grnDateSortValue(b.grnDate) - grnDateSortValue(a.grnDate); },
+  'grnDate-asc': function(a, b) { return grnDateSortValue(a.grnDate) - grnDateSortValue(b.grnDate); },
+  'grnNo-asc': function(a, b) { return String(a.grnNo || '').localeCompare(String(b.grnNo || '')); },
+  'grnNo-desc': function(a, b) { return String(b.grnNo || '').localeCompare(String(a.grnNo || '')); },
+  'vendor-asc': function(a, b) { return String(a.vendor || '').localeCompare(String(b.vendor || '')); },
+  'vendor-desc': function(a, b) { return String(b.vendor || '').localeCompare(String(a.vendor || '')); },
+  'status-asc': function(a, b) { return String(a.verificationStatus || '').localeCompare(String(b.verificationStatus || '')); },
+};
+
+let lastResults = [];         // raw results from the last successful search
+let currentSortedResults = []; // lastResults in the CURRENTLY selected sort order — what's on screen right now, and exactly what Export uses
+
+// tabName + '||' + grnNo -> the items array from a previous grnview
+// lookup. Both loadDetail() and printGrnDetails() check this first, so
+// re-opening or re-printing the same GRN within one session never
+// re-reads the sheet (requirement: don't reread when switching between
+// results and details, or when printing from the results table).
+let grnDetailCache = {};
+
+async function loadCategories() {
+  const result = await jsonp('grntabs', {});
+  if (result && result.status === 'success' && Array.isArray(result.tabs)) {
+    const select = document.getElementById('f-category');
+    result.tabs.forEach(function(tab) {
+      const opt = document.createElement('option');
+      opt.value = tab;
+      opt.textContent = tab;
+      select.appendChild(opt);
+    });
+  }
+}
+
+async function runSearch() {
+  const query = document.getElementById('f-query').value.trim();
+  const status = document.getElementById('f-status').value;
+  const category = document.getElementById('f-category').value;
+  const dateFrom = document.getElementById('f-date-from').value;
+  const dateTo = document.getElementById('f-date-to').value;
+
+  if (!query && !status && !category && !dateFrom && !dateTo) {
+    showMsg('Enter at least one search term or filter.', 'error');
+    return;
+  }
+
+  showMsg('', '');
+  document.getElementById('msg').className = 'msg';
+  document.getElementById('resultsCard').style.display = 'none';
+  document.getElementById('detailCard').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+
+  // One universal search box, mapped internally to the single new
+  // `query` param — searchGrns() matches it against GRN No., PO No., and
+  // Material Description (whichever field the term is actually found
+  // in), reusing the exact same per-field substring check the old
+  // three-field mode already used, just OR-combined instead of AND. The
+  // old grnNo/poNo/materialDescription params still exist and still work
+  // exactly as before on the backend; this page just no longer sends
+  // them separately.
+  const result = await jsonp('grnsearch', {
+    query: query,
+    status: status, category: category, dateFrom: dateFrom, dateTo: dateTo,
+  });
+
+  document.getElementById('loading').style.display = 'none';
+  btn.disabled = false;
+
+  if (!result || result.status !== 'success') {
+    showMsg((result && result.message) || 'Search failed — please try again.', 'error');
+    return;
+  }
+
+  lastResults = result.results || [];
+  document.getElementById('resultsCard').style.display = 'block';
+  renderResults();
+}
+
+// Re-sorts and re-renders the already-fetched lastResults — never
+// re-queries the server, since sorting doesn't require re-reading any
+// sheet. Also recomputes the summary totals and rebuilds
+// currentSortedResults, the exact array Export uses.
+function renderResults() {
+  const sortKey = document.getElementById('f-sort').value;
+  const sorted = lastResults.slice().sort(SORT_COMPARATORS[sortKey] || SORT_COMPARATORS['grnDate-desc']);
+  currentSortedResults = sorted;
+
+  document.getElementById('resultsCount').textContent =
+    sorted.length === 0 ? 'No GRNs found.' : sorted.length + (sorted.length === 1 ? ' GRN found.' : ' GRNs found.');
+
+  const totalQty = sorted.reduce(function(sum, r) { return sum + (Number(r.quantity) || 0); }, 0);
+  const totalAmt = sorted.reduce(function(sum, r) { return sum + (Number(r.totalAmount) || 0); }, 0);
+  document.getElementById('resultsSummary').innerHTML =
+    '<span>Total GRNs found: <b>' + sorted.length + '</b></span>' +
+    '<span>Total Quantity: <b>' + (Math.round(totalQty * 100) / 100) + '</b></span>' +
+    '<span>Total Amount: <b>₹' + (Math.round(totalAmt * 100) / 100) + '</b></span>';
+
+  const body = document.getElementById('resultsBody');
+  body.innerHTML = '';
+
+  if (sorted.length === 0) {
+    body.innerHTML = '<tr><td colspan="11" style="color:var(--muted);white-space:normal">No GRNs found matching your search.</td></tr>';
+    return;
+  }
+
+  sorted.forEach(function(r) {
+    const tr = document.createElement('tr');
+    tr.className = 'result-row';
+    tr.setAttribute('data-tab', r.tabName);
+    tr.setAttribute('data-grn', r.grnNo);
+    tr.innerHTML =
+      '<td>' + (r.grnNo || '') + '</td>' +
+      '<td>' + (r.grnDate || '') + '</td>' +
+      '<td>' + (r.poNo || '') + '</td>' +
+      '<td>' + (r.vendor || '') + '</td>' +
+      '<td style="white-space:normal">' + (r.materialDescription || '') + '</td>' +
+      '<td>' + (r.quantity != null ? r.quantity : '') + '</td>' +
+      '<td>' + statusBadge(r.verificationStatus) + '</td>' +
+      '<td>' + (r.verifiedBy || '') + '</td>' +
+      '<td>' + (r.totalAmount != null ? r.totalAmount : '') + '</td>' +
+      '<td>' + (r.tabName || '') + '</td>' +
+      '<td class="action-cell">' +
+        '<button type="button" class="mini action-view-btn" data-tab="' + escapeAttr(r.tabName) + '" data-grn="' + escapeAttr(r.grnNo) + '">View</button>' +
+        '<button type="button" class="mini action-print-btn" data-tab="' + escapeAttr(r.tabName) + '" data-grn="' + escapeAttr(r.grnNo) + '">Print</button>' +
+      '</td>';
+    body.appendChild(tr);
+  });
+}
+
+document.getElementById('f-sort').addEventListener('change', renderResults);
+
+document.getElementById('searchBtn').addEventListener('click', runSearch);
+
+// Clears every filter field back to its default — search text, status,
+// category, and both dates — without running a search. The person still
+// has to press Search afterwards, same as if they'd cleared the fields
+// by hand.
+document.getElementById('clearFiltersBtn').addEventListener('click', function() {
+  document.getElementById('f-query').value = '';
+  document.getElementById('f-status').value = '';
+  document.getElementById('f-category').value = '';
+  document.getElementById('f-date-from').value = '';
+  document.getElementById('f-date-to').value = '';
+});
+
+// Pressing Enter in the search box or a date filter runs the search
+// (matches the behavior of a native form submit, without wrapping these
+// fields in an actual <form> that could interact with browser autofill
+// differently from the rest of this page).
+['f-query', 'f-date-from', 'f-date-to'].forEach(function(id) {
+  document.getElementById(id).addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') runSearch();
+  });
+});
+
+// Collapsible Filters panel — CSS display toggle only, so the four
+// filter fields' values are never touched/cleared by collapsing or
+// expanding (a hidden <select>/<input> keeps its value exactly as the
+// browser already guarantees for any display:none element).
+document.getElementById('filtersToggle').addEventListener('click', function() {
+  const panel = document.getElementById('filtersPanel');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'grid';
+  this.textContent = (isOpen ? '▶' : '▼') + ' Filters';
+});
+
+document.getElementById('resultsBody').addEventListener('click', function(e) {
+  const printBtn = e.target.closest('.action-print-btn');
+  if (printBtn) {
+    e.stopPropagation();
+    printGrnDetails(printBtn.getAttribute('data-tab'), printBtn.getAttribute('data-grn'));
+    return;
+  }
+  const viewBtn = e.target.closest('.action-view-btn');
+  if (viewBtn) {
+    e.stopPropagation();
+    loadDetail(viewBtn.getAttribute('data-tab'), viewBtn.getAttribute('data-grn'));
+    return;
+  }
+  const tr = e.target.closest('tr.result-row');
+  if (!tr) return;
+  loadDetail(tr.getAttribute('data-tab'), tr.getAttribute('data-grn'));
+});
+
+document.getElementById('backBtn').addEventListener('click', function() {
+  // Search/filter inputs, lastResults and currentSortedResults are never
+  // cleared, so the results (and the filters that produced them) are
+  // exactly as the person left them.
+  document.getElementById('detailCard').style.display = 'none';
+  document.getElementById('resultsCard').style.display = 'block';
+});
+
+function csvEscape(value) {
+  const s = value == null ? '' : String(value);
+  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+// Exports exactly currentSortedResults — i.e. exactly what's currently
+// on screen, in its current sort order, after whatever filters produced
+// it. A plain UTF-8 CSV (with a BOM so Excel reads special characters
+// correctly) — Excel opens this natively; no server round-trip and no
+// re-read of the sheet, since currentSortedResults is already the
+// exact data the table itself is rendering from.
+function exportResultsToExcel() {
+  if (!currentSortedResults.length) {
+    showMsg('No results to export.', 'error');
+    return;
+  }
+  const headers = ['GRN Number', 'GRN Date', 'PO Number', 'Vendor', 'Material Description', 'Quantity', 'Unit', 'Verification Status', 'Verified By', 'Total Amount', 'Category'];
+  const dataRows = currentSortedResults.map(function(r) {
+    return [r.grnNo, r.grnDate, r.poNo, r.vendor, r.materialDescription, r.quantity, r.unit, r.verificationStatus, r.verifiedBy, r.totalAmount, r.tabName];
+  });
+  const csv = [headers].concat(dataRows).map(function(rowValues) {
+    return rowValues.map(csvEscape).join(',');
+  }).join('\r\n');
+
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'grn-search-results-' + Date.now() + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('exportBtn').addEventListener('click', exportResultsToExcel);
+
+// Shared by loadDetail() and printGrnDetails() — returns the items array
+// for one GRN, from cache if this GRN was already looked up this
+// session, otherwise fetches it once (via the existing, unmodified
+// grnview route) and caches it.
+async function getGrnDetailItems(tabName, grnNo) {
+  const cacheKey = tabName + '||' + grnNo;
+  if (grnDetailCache[cacheKey]) return grnDetailCache[cacheKey];
+
+  const result = await jsonp('grnview', { tab: tabName, grn: grnNo });
+  if (!result || result.status !== 'success' || !Array.isArray(result.items) || result.items.length === 0) {
+    return null;
+  }
+  grnDetailCache[cacheKey] = result.items;
+  return result.items;
+}
+
+let currentDetailTab = null;
+let currentDetailGrn = null;
+
+async function loadDetail(tabName, grnNo) {
+  showMsg('', '');
+  document.getElementById('msg').className = 'msg';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('resultsCard').style.display = 'none';
+
+  const items = await getGrnDetailItems(tabName, grnNo);
+  document.getElementById('loading').style.display = 'none';
+
+  if (!items) {
+    showMsg('Could not load this GRN.', 'error');
+    document.getElementById('resultsCard').style.display = 'block';
+    return;
+  }
+
+  currentDetailTab = tabName;
+  currentDetailGrn = grnNo;
+
+  const first = items[0];
+
+  document.getElementById('detailHeader').innerHTML =
+    '<div style="margin-bottom:10px">' + statusBadge(first.verificationStatus) + '</div>' +
+    row('GRN No.', first.grnNo) +
+    row('GRN Date', first.receivedDate) +
+    row('Category', tabName) +
+    row('Vendor', first.partyName) +
+    row('PO No.', first.poNo) +
+    row('Invoice No.', first.invoiceNo) +
+    row('Invoice Date', first.invoiceDate) +
+    row('Verification Status', first.verificationStatus) +
+    row('Verified By', first.verifiedBy) +
+    row('Verified Date', first.verifiedDate) +
+    row('Remarks', first.zohoRemarks) +
+    row('Other Charges', first.otherCharges);
+
+  document.getElementById('copyGrnBtn').setAttribute('data-copy', first.grnNo || '');
+  document.getElementById('copyPoBtn').setAttribute('data-copy', first.poNo || '');
+
+  const itemsBody = document.getElementById('detailItemsBody');
+  itemsBody.innerHTML = items.map(function(g) {
+    return '<tr>' +
+      '<td style="white-space:normal">' + (g.materialDescription || '') + '</td>' +
+      '<td>' + (g.quantity != null ? g.quantity : '') + '</td>' +
+      '<td>' + (g.unit || '') + '</td>' +
+      '<td>' + (g.basicAmount != null ? g.basicAmount : '') + '</td>' +
+      '<td>' + (g.discount != null ? g.discount : '') + '</td>' +
+      '<td>' + (g.cgst != null ? g.cgst : '') + '</td>' +
+      '<td>' + (g.sgst != null ? g.sgst : '') + '</td>' +
+      '<td>' + (g.igst != null ? g.igst : '') + '</td>' +
+      '<td>' + (g.gst != null ? g.gst : '') + '</td>' +
+      '<td>' + (g.totalAmount != null ? g.totalAmount : '') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('detailCard').style.display = 'block';
+}
+
+// Copy GRN Number / Copy PO Number — browser Clipboard API, reading
+// whichever value loadDetail() most recently stamped onto the button's
+// own data-copy attribute.
+document.getElementById('detailCard').addEventListener('click', async function(e) {
+  const btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  const text = btn.getAttribute('data-copy') || '';
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = original; }, 1200);
+  } catch (err) {
+    showMsg('Could not copy — your browser blocked clipboard access here.', 'error');
+  }
+});
+
+function printRow(label, value) {
+  return '<tr><td style="padding:4px 10px 4px 0;color:#555;width:150px;vertical-align:top">' + label + '</td>' +
+    '<td style="padding:4px 0;font-weight:600">' + (value || '—') + '</td></tr>';
+}
+
+// Builds the clean, print-only A4 layout for one GRN — used identically
+// whether Print was triggered from the detail page's own button or from
+// a results-row's Print action (which never navigates to the detail
+// view at all).
+function buildPrintHtml(items, tabName) {
+  const first = items[0];
+  const generalRows =
+    printRow('GRN Number', first.grnNo) +
+    printRow('GRN Date', first.receivedDate) +
+    printRow('Vendor', first.partyName) +
+    printRow('PO Number', first.poNo) +
+    printRow('Invoice Number', first.invoiceNo) +
+    printRow('Invoice Date', first.invoiceDate) +
+    printRow('Verification Status', first.verificationStatus) +
+    printRow('Verified By', first.verifiedBy) +
+    printRow('Verified Date', first.verifiedDate) +
+    printRow('Remarks', first.zohoRemarks) +
+    printRow('Other Charges', first.otherCharges);
+
+  const itemHeaders = ['Material Description', 'Quantity', 'Unit', 'Basic Amount', 'Discount', 'CGST', 'SGST', 'IGST', 'GST', 'Total Amount'];
+  const itemFields = ['materialDescription', 'quantity', 'unit', 'basicAmount', 'discount', 'cgst', 'sgst', 'igst', 'gst', 'totalAmount'];
+  const itemHeaderHtml = itemHeaders.map(function(h) {
+    return '<th style="text-align:left;border-bottom:1.5px solid #333;padding:5px 6px;font-size:11px;text-transform:uppercase">' + h + '</th>';
+  }).join('');
+  const itemRowsHtml = items.map(function(g) {
+    return '<tr>' + itemFields.map(function(f) {
+      return '<td style="border-bottom:1px solid #ddd;padding:5px 6px">' + (g[f] != null ? g[f] : '') + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+
+  return (
+    '<div style="font-family:Arial,Helvetica,sans-serif;color:#111">' +
+      '<h2 style="margin:0 0 2px">GRN ' + (first.grnNo || '') + '</h2>' +
+      '<p style="margin:0 0 18px;color:#555;font-size:12px">Achira Labs · Goods Receipt Note · ' + (tabName || '') + '</p>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px">' + generalRows + '</table>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:11.5px"><thead><tr>' + itemHeaderHtml + '</tr></thead><tbody>' + itemRowsHtml + '</tbody></table>' +
+    '</div>'
+  );
+}
+
+async function printGrnDetails(tabName, grnNo) {
+  const items = await getGrnDetailItems(tabName, grnNo);
+  if (!items) {
+    showMsg('Could not load this GRN for printing.', 'error');
+    return;
+  }
+  document.getElementById('printArea').innerHTML = buildPrintHtml(items, tabName);
+  window.print();
+}
+
+document.getElementById('printDetailBtn').addEventListener('click', function() {
+  if (!currentDetailTab || !currentDetailGrn) return;
+  printGrnDetails(currentDetailTab, currentDetailGrn);
+});
+
+loadCategories();
+</script>
+</body>
+</html>

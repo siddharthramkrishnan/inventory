@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verify GRN · Achira Labs</title>
+<title>Achira Inventory - Verify GRNs</title>
 <style>
   :root{
     --ink:#16211f;
@@ -33,6 +33,18 @@
   }
   header h1{ margin:0; font-size:19px; font-weight:700; }
   header p{ margin:4px 0 0; font-size:13px; color:#cfe0da; }
+  .home-nav-link{
+    display:inline-block;
+    font-size:12px;
+    font-weight:600;
+    color:#fff;
+    background:rgba(255,255,255,0.18);
+    padding:3px 10px;
+    border-radius:20px;
+    text-decoration:none;
+    margin-bottom:8px;
+  }
+  .home-nav-link:hover{ background:rgba(255,255,255,0.28); }
   .wrap{ max-width:560px; margin:0 auto; padding:16px 14px 60px; }
   .card{
     background:var(--card);
@@ -106,6 +118,7 @@
 </head>
 <body>
 <header>
+  <a href="home.html" class="home-nav-link">← Home</a>
   <h1>\ud83d\udce6 Verify GRN</h1>
   <p>Achira Labs \u00b7 Confirm delivery against your PO</p>
 </header>
@@ -205,20 +218,22 @@ async function loadDetails() {
     ? '<span class="status-badge verified">Verified</span>'
     : '<span class="status-badge pending">Pending Verification</span>';
 
-  const itemsHtml = currentItems.map(function(g, idx) {
-    const cbId = 'verify-item-cb-' + idx;
-    const isVerified = g.verificationStatus === 'Verified';
-    const checkboxHtml = isVerified
-      ? '<span class="status-badge verified" style="margin-right:8px">Verified</span>'
-      : '<input type="checkbox" class="verify-item-checkbox" id="' + cbId + '" data-desc="' + String(g.materialDescription || '').replace(/"/g, '&quot;') + '" checked style="margin-right:8px">';
-    return '<div style="display:flex;align-items:flex-start;gap:8px;margin:14px 0 4px">' +
-        checkboxHtml +
-        (currentItems.length > 1 ? '<label for="' + cbId + '" style="font-weight:700;color:var(--accent-dark)">Item ' + (idx + 1) + '</label>' : '<span></span>') +
-      '</div>' +
-      row('Material', g.materialDescription) +
-      row('Quantity', g.quantity) +
-      row('Invoice Amount', g.invoiceAmount);
-  }).join('');
+  const itemsHtml = currentItems.length === 0
+    ? '<div style="color:var(--muted);font-size:13px;padding:10px 0">No GRNs pending verification.</div>'
+    : currentItems.map(function(g, idx) {
+        const cbId = 'verify-item-cb-' + idx;
+        const isVerified = g.verificationStatus === 'Verified';
+        const checkboxHtml = isVerified
+          ? '<span class="status-badge verified" style="margin-right:8px">Verified</span>'
+          : '<input type="checkbox" class="verify-item-checkbox" id="' + cbId + '" data-desc="' + String(g.materialDescription || '').replace(/"/g, '&quot;') + '" checked style="margin-right:8px">';
+        return '<div style="display:flex;align-items:flex-start;gap:8px;margin:14px 0 4px">' +
+            checkboxHtml +
+            (currentItems.length > 1 ? '<label for="' + cbId + '" style="font-weight:700;color:var(--accent-dark)">Item ' + (idx + 1) + '</label>' : '<span></span>') +
+          '</div>' +
+          row('Material', g.materialDescription) +
+          row('Quantity', g.quantity) +
+          row('Invoice Amount', g.invoiceAmount);
+      }).join('');
 
   document.getElementById('detailsCard').innerHTML =
     '<div style="margin-bottom:10px">' + badge +

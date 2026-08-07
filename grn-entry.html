@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GRN Entry · Achira Labs</title>
+<title>Achira Inventory - Create GRN</title>
 <style>
   :root{
     --ink:#16211f;
@@ -36,6 +36,18 @@
   }
   header h1{ margin:0; font-size:19px; font-weight:700; letter-spacing:0.2px; }
   header p{ margin:4px 0 0; font-size:13px; color:#cfe0da; }
+  .home-nav-link{
+    display:inline-block;
+    font-size:12px;
+    font-weight:600;
+    color:#fff;
+    background:rgba(255,255,255,0.18);
+    padding:3px 10px;
+    border-radius:20px;
+    text-decoration:none;
+    margin-bottom:8px;
+  }
+  .home-nav-link:hover{ background:rgba(255,255,255,0.28); }
   .wrap{ max-width:640px; margin:0 auto; padding:16px 14px 60px; }
   .card{
     background:var(--card);
@@ -126,6 +138,7 @@
 </head>
 <body>
 <header>
+  <a href="home.html" class="home-nav-link">← Home</a>
   <h1>📋 GRN Entry</h1>
   <p>Achira Labs · Goods Receipt Note</p>
 </header>
@@ -430,6 +443,21 @@ document.getElementById('suggestBtn').addEventListener('click', function() { ref
 // text field either way).
 let activePOsData = [];
 let activePOItemsByCheckboxId = {};
+
+// Unsaved-changes warning — set the moment the person changes anything
+// in the form, cleared automatically once a submission fully succeeds
+// (see the success branch of the submit handler below). Only warns when
+// the form has actually been touched; a page load / PO auto-fill alone
+// never sets this on its own since those aren't user-typed 'input'/
+// 'change' events on a form field.
+let formDirty = false;
+document.getElementById('grnForm').addEventListener('input', function() { formDirty = true; });
+document.getElementById('grnForm').addEventListener('change', function() { formDirty = true; });
+window.addEventListener('beforeunload', function(e) {
+  if (!formDirty) return;
+  e.preventDefault();
+  e.returnValue = ''; // required by some browsers to show the native confirmation dialog
+});
 
 // ============================================================
 // Shared financial fields (Basic Amount / Discount / CGST / SGST / IGST /
@@ -1082,6 +1110,7 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
       msg += ' Note: this tab has no matching column for: ' + Array.from(new Set(allSkipped)).join(', ') + ' — those values were not saved.';
     }
     showMsg(msg, 'success');
+    formDirty = false; // successful submission — no unsaved changes left to warn about
     document.getElementById('grnForm').reset();
     document.getElementById('poItemField').style.display = 'none';
     document.getElementById('manualItemsContainer').innerHTML = '';
