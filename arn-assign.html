@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Achira Inventory - ARN Management</title>
+<title>ARN Assignment · Achira Labs</title>
 <style>
   :root{
     --ink:#16211f;
@@ -45,18 +45,6 @@
     font-size:13px;
     color:#cfe0da;
   }
-  .home-nav-link{
-    display:inline-block;
-    font-size:12px;
-    font-weight:600;
-    color:#fff;
-    background:rgba(255,255,255,0.18);
-    padding:3px 10px;
-    border-radius:20px;
-    text-decoration:none;
-    margin-bottom:8px;
-  }
-  .home-nav-link:hover{ background:rgba(255,255,255,0.28); }
   .wrap{
     max-width:640px;
     margin:0 auto;
@@ -354,7 +342,6 @@
 <body>
 
 <header>
-  <a href="home.html" class="home-nav-link">← Home</a>
   <h1>ARN Assignment</h1>
   <p>Achira Labs · categorize new items &amp; approve</p>
 </header>
@@ -435,11 +422,6 @@
 
       <div class="hint" id="grn-order-hint">
         Log the GRN in the GRN sheet <strong>first</strong> — this is checked against Procurement's register, so it won't be found if it hasn't been entered there yet.
-      </div>
-
-      <div>
-        <label>Store Location</label>
-        <input type="text" id="f-location" placeholder="e.g. Room Temperature R_D Section, 2-8 Fridge">
       </div>
 
       <label class="checkbox-row">
@@ -646,7 +628,7 @@ const EMPLOYEES = {
 /* =====================================================================
    ARN REFERENCE DATA — the 22 sub-categories, grouped by department
    ===================================================================== */
-const DEPT_LABELS = { RD: "R&D", MF: "Manufacturing", EN: "Engineering", GN: "General" };
+const DEPT_LABELS = { RD: "R&D", MF: "Manufacturing", EN: "Engineering", GN: "General", CI: "Common Inventory" };
 
 const SUBCATS = {
   RD: [
@@ -679,6 +661,17 @@ const SUBCATS = {
     { code: "FA", label: "Facilities" },
     { code: "SF", label: "Safety" },
   ],
+  // NEW (per Accounts): items shared/used mostly by R&D day-to-day, only
+  // getting cost-centered into Manufacturing when an actual product ships
+  // for sale. Applies to NEW items going forward only — the equivalent
+  // MF-CM/CT/LB/PM entries above are kept as-is for items already
+  // classified there, so existing ARNs/history are never touched.
+  CI: [
+    { code: "CM", label: "Common Consumables" },
+    { code: "CT", label: "Common Cartridges" },
+    { code: "LB", label: "Common Labels & Stickers" },
+    { code: "PM", label: "Common Packing Materials" },
+  ],
 };
 
 // Fallback sub-category per department when nothing matches keywords/brand
@@ -706,11 +699,15 @@ const KEYWORD_RULES = {
   "RD-KT": ["kit","elisa","extraction kit","conjugation kit","control pack","qc pack","trilevel","reagent kit"],
 
   "MF-RM": ["raw material","resin","polymer","laminate","wafer","substrate","adhesive","nitrocellulose","membrane roll"],
-  "MF-CT": ["cartridge","cassette"],
-  "MF-PM": ["packaging","carton","pouch","blister","foil","box","bag"],
-  "MF-CM": ["bottle cap","screw cap","o-ring","gasket seal"],
   "MF-JG": ["jig","fixture","mould","mold","tooling","die"],
-  "MF-LB": ["label","sticker","barcode label","cryo label"],
+  // Redirected to CI (Common Inventory) per Accounts' request — these were
+  // previously "MF-CT"/"MF-PM"/"MF-CM"/"MF-LB". Existing items already
+  // classified under those MF codes are untouched; this only changes
+  // where NEW matching items get suggested.
+  "CI-CT": ["cartridge","cassette"],
+  "CI-PM": ["packaging","carton","pouch","blister","foil","box","bag"],
+  "CI-CM": ["bottle cap","screw cap","o-ring","gasket seal"],
+  "CI-LB": ["label","sticker","barcode label","cryo label"],
 
   "EN-EQ": ["instrument","equipment","analyzer","incubator","centrifuge","spectrophotometer","balance","autoclave","oven","shaker"],
   "EN-EL": ["pcb","resistor","capacitor","microcontroller","sensor","relay","diode","transistor","arduino","raspberry pi","wire","cable","connector","circuit","ic chip"],
@@ -1002,7 +999,6 @@ document.getElementById("btn-submit").addEventListener("click", () => {
   const personalBill = document.getElementById("f-personal-bill").value.trim();
   const personalPaidBy = document.getElementById("f-personal-paidby").value;
   const qty = document.getElementById("f-qty").value.trim();
-  const location = document.getElementById("f-location").value.trim();
   const requester = document.getElementById("f-requester").value;
   const subcatVal = document.getElementById("f-subcat").value; // "RD-CH" etc
   const notes = document.getElementById("f-notes").value.trim();
@@ -1046,7 +1042,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
 
   const payload = {
     type: "ARN_ASSIGN",
-    material, brand, grn, qty, notes, location,
+    material, brand, grn, qty, notes,
     unit: getSelectedUnit(),
     isPersonalPurchase,
     personalVendor,
@@ -1088,7 +1084,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
       statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.${prnNote}</div>`;
       recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester, grn: result.grn });
       renderRecent();
-      ["f-material","f-brand","f-grn","f-qty","f-notes","f-location","f-unit-other","f-personal-vendor","f-personal-amount","f-personal-bill","f-personal-paidby","f-req-tab","f-req-no"].forEach(id => document.getElementById(id).value = "");
+      ["f-material","f-brand","f-grn","f-qty","f-notes","f-unit-other","f-personal-vendor","f-personal-amount","f-personal-bill","f-personal-paidby","f-req-tab","f-req-no"].forEach(id => document.getElementById(id).value = "");
       document.getElementById("f-unit").value = "";
       document.getElementById("unit-other-wrap").style.display = "none";
       document.getElementById("f-personal-purchase").checked = false;
