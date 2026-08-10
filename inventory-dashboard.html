@@ -238,7 +238,7 @@
         <p class="section-title">Inventory by Department</p>
         <div style="overflow-x:auto">
           <table class="simple">
-            <thead><tr><th>Department</th><th># Items</th><th>Total Qty</th></tr></thead>
+            <thead><tr><th style="width:70%">Department</th><th style="width:30%"># Items</th></tr></thead>
             <tbody id="deptBody"></tbody>
           </table>
         </div>
@@ -247,7 +247,7 @@
         <p class="section-title">Inventory by Subcategory</p>
         <div style="overflow-x:auto">
           <table class="simple">
-            <thead><tr><th>Subcategory</th><th># Items</th><th>Total Qty</th></tr></thead>
+            <thead><tr><th style="width:70%">Subcategory</th><th style="width:30%"># Items</th></tr></thead>
             <tbody id="subcatBody"></tbody>
           </table>
         </div>
@@ -384,15 +384,16 @@ function renderRecent(rows) {
 function renderGroupTable(bodyId, rows, labelKey) {
   const body = document.getElementById(bodyId);
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="3" class="empty-row">No data yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="2" class="empty-row">No data yet.</td></tr>';
     return;
   }
-  const sorted = rows.slice().sort(function(a, b) { return b.totalQty - a.totalQty; });
+  // Was sorted by totalQty (now removed, see backend change) — sorts by
+  // # Items descending instead, the only numeric field left.
+  const sorted = rows.slice().sort(function(a, b) { return b.itemCount - a.itemCount; });
   body.innerHTML = sorted.map(function(r) {
     return '<tr>' +
       '<td>' + escapeHtml(r[labelKey]) + '</td>' +
       '<td>' + fmtNum(r.itemCount) + '</td>' +
-      '<td>' + fmtNum(r.totalQty) + '</td>' +
     '</tr>';
   }).join('');
 }
