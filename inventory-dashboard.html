@@ -73,12 +73,14 @@
   .msg.error{ background:var(--red-bg); color:var(--red); display:block; }
   #loading{ padding:40px 0; text-align:center; color:var(--muted); font-size:14px; }
 
+  /* auto-fit/minmax instead of a fixed column count — cards always
+     wrap evenly regardless of how many KPIs exist, so removing or
+     adding one never leaves a ragged gap in the row. */
   .kpi-grid{
     display:grid;
-    grid-template-columns:repeat(4, 1fr);
+    grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
     gap:14px;
   }
-  @media (max-width:900px){ .kpi-grid{ grid-template-columns:repeat(2, 1fr); } }
   .kpi-card{
     background:#fff;
     border:1px solid var(--line);
@@ -89,6 +91,36 @@
   .kpi-label{ font-size:12px; color:var(--muted); margin-top:4px; }
   .kpi-value.amber{ color:var(--amber); }
   .kpi-value.red{ color:var(--red); }
+
+  .collapsible-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    width:100%;
+    text-align:left;
+    background:none;
+    border:none;
+    padding:0 0 4px;
+    margin:0 0 8px;
+    font-size:13px;
+    font-weight:700;
+    color:var(--accent-dark);
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    cursor:pointer;
+  }
+  .collapsible-arrow{
+    display:inline-block;
+    font-size:10px;
+    transition:transform 0.25s ease;
+  }
+  .collapsible-header.open .collapsible-arrow{ transform:rotate(90deg); }
+  .collapsible-panel{
+    max-height:0;
+    overflow:hidden;
+    transition:max-height 0.3s ease;
+  }
+  .collapsible-panel.open{ max-height:3000px; }
 
   .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   @media (max-width:900px){ .two-col{ grid-template-columns:1fr; } }
@@ -140,10 +172,6 @@
           <div class="kpi-label">Total Inventory Items</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-value" id="kpiTotalStock">0</div>
-          <div class="kpi-label">Current Stock Quantity</div>
-        </div>
-        <div class="kpi-card">
           <div class="kpi-value" id="kpiTodayAdditions">0</div>
           <div class="kpi-label">Today's Additions</div>
         </div>
@@ -151,8 +179,6 @@
           <div class="kpi-value" id="kpiTodayReductions">0</div>
           <div class="kpi-label">Today's Reductions</div>
         </div>
-      </div>
-      <div class="kpi-grid" style="margin-top:14px">
         <div class="kpi-card">
           <div class="kpi-value amber" id="kpiLowStock">0</div>
           <div class="kpi-label">Low Stock Items</div>
@@ -160,10 +186,6 @@
         <div class="kpi-card">
           <div class="kpi-value red" id="kpiOutOfStock">0</div>
           <div class="kpi-label">Out of Stock Items</div>
-        </div>
-        <div class="kpi-card" id="kpiValueCard">
-          <div class="kpi-value" id="kpiTotalValue">—</div>
-          <div class="kpi-label">Total Inventory Value</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-value" id="kpiLastUpdated" style="font-size:15px">—</div>
@@ -174,21 +196,29 @@
 
     <div class="two-col">
       <div class="card">
-        <p class="section-title">Low Stock Items</p>
-        <div style="overflow-x:auto">
-          <table class="simple">
-            <thead><tr><th>ARN</th><th>Item</th><th>Dept</th><th>Qty</th><th>Min.</th></tr></thead>
-            <tbody id="lowStockBody"></tbody>
-          </table>
+        <button type="button" class="collapsible-header" id="lowStockToggle" aria-expanded="false" aria-controls="lowStockPanel">
+          <span class="collapsible-arrow">▶</span> Low Stock Items
+        </button>
+        <div class="collapsible-panel" id="lowStockPanel">
+          <div style="overflow-x:auto">
+            <table class="simple">
+              <thead><tr><th>ARN</th><th>Item</th><th>Dept</th><th>Qty</th><th>Min.</th></tr></thead>
+              <tbody id="lowStockBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
       <div class="card">
-        <p class="section-title">Out of Stock Items</p>
-        <div style="overflow-x:auto">
-          <table class="simple">
-            <thead><tr><th>ARN</th><th>Item</th><th>Dept</th><th>Qty</th></tr></thead>
-            <tbody id="outOfStockBody"></tbody>
-          </table>
+        <button type="button" class="collapsible-header" id="outOfStockToggle" aria-expanded="false" aria-controls="outOfStockPanel">
+          <span class="collapsible-arrow">▶</span> Out of Stock Items
+        </button>
+        <div class="collapsible-panel" id="outOfStockPanel">
+          <div style="overflow-x:auto">
+            <table class="simple">
+              <thead><tr><th>ARN</th><th>Item</th><th>Dept</th><th>Qty</th></tr></thead>
+              <tbody id="outOfStockBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -284,24 +314,8 @@ function fmtNum(n) {
 
 function renderKpis(summary) {
   document.getElementById('kpiTotalItems').textContent = fmtNum(summary.totalItems);
-  document.getElementById('kpiTotalStock').textContent = fmtNum(summary.totalStock);
   document.getElementById('kpiTodayAdditions').textContent = fmtNum(summary.todayAdditions);
   document.getElementById('kpiTodayReductions').textContent = fmtNum(summary.todayReductions);
-
-  // totalInventoryValue is null (not 0) when Master Item List has no
-  // recognizable Cost/Rate/Unit Price column — shown as "Not available"
-  // rather than a misleading ₹0, and the card is de-emphasized (not
-  // hidden — a person opening the dashboard should be able to tell the
-  // KPI genuinely doesn't apply here, not that it silently disappeared).
-  const valueEl = document.getElementById('kpiTotalValue');
-  if (summary.totalInventoryValue == null) {
-    valueEl.textContent = 'Not available';
-    valueEl.style.fontSize = '14px';
-    valueEl.style.color = 'var(--muted)';
-    document.getElementById('kpiValueCard').title = 'Master Item List has no Cost / Rate / Unit Price column, so this can\'t be calculated.';
-  } else {
-    valueEl.textContent = '₹' + fmtNum(summary.totalInventoryValue);
-  }
 }
 
 function renderLastUpdated(generatedAt) {
@@ -428,6 +442,24 @@ async function loadDashboard() {
   renderTrend('weeklyTrendBody', result.weeklyTrend || [], 'week');
   renderTrend('monthlyTrendBody', result.monthlyTrend || [], 'month');
 }
+
+// Collapsible Low Stock / Out of Stock panels — collapsed by default,
+// click the header to expand/collapse. Purely presentational: the
+// tables inside are still populated by renderLowStock()/
+// renderOutOfStock() exactly as before, whether the panel is open or
+// closed, so switching tabs/toggling never re-fetches or loses data.
+function wireCollapsible(headerId, panelId) {
+  const header = document.getElementById(headerId);
+  const panel = document.getElementById(panelId);
+  header.addEventListener('click', function() {
+    const nowOpen = !panel.classList.contains('open');
+    panel.classList.toggle('open', nowOpen);
+    header.classList.toggle('open', nowOpen);
+    header.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+  });
+}
+wireCollapsible('lowStockToggle', 'lowStockPanel');
+wireCollapsible('outOfStockToggle', 'outOfStockPanel');
 
 loadDashboard();
 </script>
