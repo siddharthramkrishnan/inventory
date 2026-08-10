@@ -1,6 +1,6 @@
 import requests
 
-TALLY_URL = "http://192.168.29.22:9999"
+TALLY_URL = "http://192.168.29.23:9999"
 
 xml_request = """
 <ENVELOPE>
