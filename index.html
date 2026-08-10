@@ -527,48 +527,19 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v
 
 let selectedItem  = null;
 let currentEffect = null;
+let adjCounter    = parseInt(localStorage.getItem('achira_adj_counter') || '0') + 1;
 let recentLog     = JSON.parse(localStorage.getItem('achira_recent_log') || '[]');
 
-// FIX: this used to compute a fake Adj ID from a localStorage counter —
-// every device kept its OWN independent count, so two different phones
-// used by two different store staff would both generate "ADJ-0001",
-// "ADJ-0002"... guaranteed to collide with each other and with the
-// server's own real sequential numbering. The real ID is now only known
-// once the server actually confirms the write (see submitAdjustment()) —
-// this badge is just a neutral placeholder until then.
 function init() {
   const now = new Date();
   document.getElementById('headerDate').textContent =
     now.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
-  document.getElementById('adjIdBadge').textContent = 'Auto-assigned on submit';
+  updateAdjId();
   renderRecentLog();
 }
 
-// FIX: same JSONP pattern already used by every other app in this
-// codebase — Apps Script Web Apps don't send CORS headers on POST
-// responses, so a plain fetch() can never actually read what the server
-// says back, only whether the network request itself completed.
-function jsonp(action, params) {
-  return new Promise(function(resolve) {
-    const callbackName = 'cb_' + action + '_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
-    let qs = 'action=' + action + '&callback=' + callbackName;
-    for (const k in params) {
-      qs += '&' + k + '=' + encodeURIComponent(params[k]);
-    }
-    window[callbackName] = function(result) {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      resolve(result);
-    };
-    const script = document.createElement('script');
-    script.src = APPS_SCRIPT_URL + '?' + qs;
-    script.onerror = function() {
-      delete window[callbackName];
-      if (document.body.contains(script)) document.body.removeChild(script);
-      resolve(null);
-    };
-    document.body.appendChild(script);
-  });
+function updateAdjId() {
+  document.getElementById('adjIdBadge').textContent = `ADJ-${String(adjCounter).padStart(4,'0')}`;
 }
 
 // ── TYPE CHANGE ───────────────────────────────────────────────────────────────
@@ -849,12 +820,11 @@ async function submitAdjustment() {
   btn.classList.add('loading');
   btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Saving…';
 
-  const now = new Date();
+  const now    = new Date();
+  const adjId  = `ADJ-${String(adjCounter).padStart(4,'0')}`;
 
-  // FIX: no adjId here — the server always auto-generates the real one
-  // (getNextAdjSerial()), so there's never a client-guessed value that
-  // could collide with another device or with the server's own numbering.
   const payload = {
+    adjId,
     date:          now.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}),
     time:          now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
     arn:           selectedItem.a,
@@ -874,42 +844,55 @@ async function submitAdjustment() {
     tallySync:     'Not Synced',
   };
 
-  const resetButton = function() {
+  function resetSubmitButton() {
     btn.disabled = false;
     btn.classList.remove('loading');
     btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12l5 5L19 7"/></svg>Submit Adjustment';
-  };
-
-  // FIX: this used to be a bare fetch() whose response was never read at
-  // all — Apps Script doesn't send CORS headers on POST responses, so
-  // that response could never actually be checked. The app showed
-  // "Success" unconditionally, even when the server's own validation
-  // (e.g. "Issued To is required...") REJECTED the write — the stock
-  // movement silently never happened. Now uses the same GET+JSONP
-  // pattern already proven throughout this codebase, and only shows
-  // success once the server genuinely confirms it, with the REAL
-  // server-assigned Adj ID — never a guessed one.
-  if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
-    await new Promise(r => setTimeout(r, 800)); // demo mode
-    const demoPayload = Object.assign({}, payload, { adjId: 'ADJ-DEMO' });
-    recentLog.unshift(demoPayload);
-    if (recentLog.length > 10) recentLog.pop();
-    localStorage.setItem('achira_recent_log', JSON.stringify(recentLog));
-    showSuccess(demoPayload);
-    return;
   }
 
-  const result = await jsonp('submitadjustment', { data: JSON.stringify(payload) });
+  try {
+    let result;
+    if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+      await new Promise(r => setTimeout(r, 800)); // demo mode
+      result = { status: 'success' };
+    } else {
+      // Apps Script requires URL params for cross-origin POST
+      const params = new URLSearchParams();
+      params.append('data', JSON.stringify(payload));
+      const resp = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: params,
+      });
+      // FIX: this used to assume the adjustment succeeded as soon as
+      // fetch() itself didn't throw — but Apps Script always returns
+      // HTTP 200 even for a server-side validation failure (e.g. "Item
+      // not found in Master Item List.", or a deduction that would take
+      // stock negative), so a rejected adjustment was silently shown as
+      // a success. The response body's own status field is the only
+      // trustworthy signal, exactly like every JSONP call on this page
+      // already treats result.status.
+      result = await resp.json();
+    }
 
-  if (result && result.status === 'success') {
-    const confirmedPayload = Object.assign({}, payload, { adjId: result.adjId });
-    recentLog.unshift(confirmedPayload);
+    if (!result || result.status !== 'success') {
+      showToast((result && result.message) || 'Could not save this adjustment — please try again.', true);
+      resetSubmitButton();
+      return;
+    }
+
+    adjCounter++;
+    localStorage.setItem('achira_adj_counter', adjCounter);
+    updateAdjId();
+
+    recentLog.unshift(payload);
     if (recentLog.length > 10) recentLog.pop();
     localStorage.setItem('achira_recent_log', JSON.stringify(recentLog));
-    showSuccess(confirmedPayload);
-  } else {
-    showToast((result && result.message) || 'Something went wrong — please check and try again', true);
-    resetButton();
+
+    showSuccess(payload);
+
+  } catch(err) {
+    showToast('Network error — please try again', true);
+    resetSubmitButton();
   }
 }
 
