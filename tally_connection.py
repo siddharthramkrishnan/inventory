@@ -19,9 +19,13 @@ inspecting console output.
 
 import requests
 
+from config import TALLY_URL
+
 # Reused exactly from test_tally.py — do not change without re-verifying
-# against the working script.
-TALLY_URL = "http://192.168.29.22:9999"
+# against the working script. TALLY_URL itself now lives in config.py,
+# the single source of truth (see that file for why: it and
+# test_tally.py's own copy of this value had already drifted out of
+# sync before this change).
 DEFAULT_TIMEOUT = 5
 
 # The exact Company List request from test_tally.py, reused verbatim as a

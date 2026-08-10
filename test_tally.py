@@ -1,6 +1,6 @@
 import requests
 
-TALLY_URL = "http://192.168.29.23:9999"
+from config import TALLY_URL
 
 xml_request = """
 <ENVELOPE>
