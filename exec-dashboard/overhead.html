@@ -182,6 +182,26 @@
         </div>
       </div>
 
+      <div class="panel" id="direct-costs-panel">
+        <div id="direct-costs-toggle" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+          <h2 style="margin-bottom:0;">Direct Costs (COGS) — click to explore breakdown</h2>
+          <span id="direct-costs-toggle-arrow" style="font-size:13px;color:#888;">▾ Expand</span>
+        </div>
+
+        <div id="direct-costs-detail" style="display:none;margin-top:20px;">
+          <p style="font-size:12px;color:#b45309;background:#fef3c7;padding:8px 12px;border-radius:6px;margin-bottom:16px;">
+            The R&amp;D vs. Manufacturing split below is <strong>provisional</strong> — manufacturing costs have
+            historically been booked under R&amp;D and are being corrected via monthly reclassification JVs
+            (in progress with accounts). Treat this split as indicative only until confirmed.
+          </p>
+          <div class="kpi-grid" id="dc-kpi-grid"></div>
+          <div class="panel" style="box-shadow:none;border:1px solid #eee;margin-top:16px;">
+            <h2>Purchase lines by source</h2>
+            <table id="dc-table"></table>
+          </div>
+        </div>
+      </div>
+
       <div class="panel" id="overhead-drilldown-panel">
         <div id="overhead-toggle" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
           <h2 style="margin-bottom:0;">Indirect Expense — click to explore breakdown</h2>
@@ -269,6 +289,7 @@
       document.getElementById('pnl-loading').style.display = 'none';
       document.getElementById('pnl-content').style.display = 'block';
       renderPnl(data);
+      renderDirectCosts(data);
     };
     const script = document.createElement('script');
     script.src = APPS_SCRIPT_URL + '?action=pnl'
@@ -395,6 +416,54 @@
     html += '</table>';
     return html;
   }
+
+  function monthsElapsedInFY() {
+    const now = new Date();
+    const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const fyStart = new Date(fyStartYear, 3, 1);
+    const months = (now.getFullYear() - fyStart.getFullYear()) * 12 + (now.getMonth() - fyStart.getMonth());
+    return Math.max(months, 1); // completed months, excludes current partial month
+  }
+
+  function renderDirectCosts(data) {
+    const cogsTotal = data.lines.cogs;
+    const breakdown = data.cogsBreakdown || [];
+    const months = monthsElapsedInFY();
+    const avgMonthly = cogsTotal / months;
+    const projectedFY = avgMonthly * 12;
+    const largest = breakdown.length ? breakdown[0].ledger : '—';
+
+    const kpiGrid = document.getElementById('dc-kpi-grid');
+    kpiGrid.innerHTML =
+      '<div class="kpi-card"><div class="kpi-label">Total COGS YTD</div><div class="kpi-value">' + formatINR(cogsTotal) + '</div></div>'
+      + '<div class="kpi-card"><div class="kpi-label">Avg monthly run-rate</div><div class="kpi-value">' + formatINR(avgMonthly) + '</div><div class="kpi-note">Based on ' + months + ' months elapsed</div></div>'
+      + '<div class="kpi-card"><div class="kpi-label">Projected FY total</div><div class="kpi-value">' + formatINR(projectedFY) + '</div><div class="kpi-note">Run-rate x 12</div></div>'
+      + '<div class="kpi-card"><div class="kpi-label">Largest source</div><div class="kpi-value" style="font-size:16px;">' + largest + '</div></div>';
+
+    const table = document.getElementById('dc-table');
+    let html = '<tr><th>Ledger</th><th>Group</th><th class="num">Total (INR)</th></tr>';
+    breakdown.forEach(function (r) {
+      const groupBadge = (r.parent || '').indexOf('MFG') > -1
+        ? '<span style="color:#eb6834;">' + r.parent + '</span>'
+        : '<span style="color:#2a78d6;">' + r.parent + '</span>';
+      html += '<tr><td>' + r.ledger + '</td><td>' + groupBadge + '</td><td class="num">' + formatINR(r.total) + '</td></tr>';
+    });
+    html += '<tr class="total-row"><td>Total</td><td></td><td class="num">' + formatINR(cogsTotal) + '</td></tr>';
+    table.innerHTML = html;
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const dcToggle = document.getElementById('direct-costs-toggle');
+    if (dcToggle) {
+      dcToggle.addEventListener('click', function () {
+        const detail = document.getElementById('direct-costs-detail');
+        const arrow = document.getElementById('direct-costs-toggle-arrow');
+        const isOpen = detail.style.display !== 'none';
+        detail.style.display = isOpen ? 'none' : 'block';
+        arrow.textContent = isOpen ? '▾ Expand' : '▴ Collapse';
+      });
+    }
+  });
 
   // ---- Overhead drill-down: lazy-loaded on first click ----
   let overheadLoaded = false;
