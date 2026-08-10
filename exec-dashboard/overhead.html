@@ -237,6 +237,8 @@
               <h2>Top 5 individual cost lines (YTD)</h2>
               <table id="top-ledger-table"></table>
             </div>
+
+            <div id="category-sections-container"></div>
           </div>
         </div>
       </div>
@@ -519,6 +521,52 @@
     renderTopLedgerTable(data.topLedgers);
     renderBarChart(data.categories, data.months);
     renderPieChart(data.categories);
+    renderCategorySections(data);
+  }
+
+  // One dedicated section per Indirect Expense sub-category (Salary,
+  // Consultancy, Travel, Overheads) -- same KPI-card + table treatment as
+  // the Direct Costs section, per CFO request. Fully dynamic: works with
+  // however many categories the Sheet actually defines, no hardcoding.
+  function renderCategorySections(data) {
+    const container = document.getElementById('category-sections-container');
+    const months = data.months || [];
+    const currentMonthIdx = months.findIndex(function (m) { return m.isCurrent; });
+    const completedCount = currentMonthIdx > -1 ? months.length - 1 : months.length;
+
+    let html = '';
+    data.categories.forEach(function (cat, catIdx) {
+      const ledgers = (data.ledgersByCategory && data.ledgersByCategory[cat.name]) || [];
+      const avgMonthly = cat.avgPerMonthExclCurrent || 0;
+      const projected = avgMonthly * 12;
+      const largest = ledgers.length ? ledgers[0].ledger : '—';
+      const sectionId = 'cat-section-' + catIdx;
+
+      html += '<div class="panel" style="margin-top:20px;">'
+        + '<h2>' + cat.name + '</h2>'
+        + '<div class="kpi-grid">'
+        + '<div class="kpi-card"><div class="kpi-label">Total YTD</div><div class="kpi-value">' + formatINR(cat.total) + '</div></div>'
+        + '<div class="kpi-card"><div class="kpi-label">Avg monthly run-rate</div><div class="kpi-value">' + formatINR(avgMonthly) + '</div><div class="kpi-note">Excludes current month</div></div>'
+        + '<div class="kpi-card"><div class="kpi-label">Projected FY total</div><div class="kpi-value">' + formatINR(projected) + '</div><div class="kpi-note">Run-rate x 12</div></div>'
+        + '<div class="kpi-card"><div class="kpi-label">Largest line item</div><div class="kpi-value" style="font-size:16px;">' + largest + '</div></div>'
+        + '</div>'
+        + '<table style="margin-top:16px;" id="' + sectionId + '-table"></table>'
+        + '</div>';
+    });
+    container.innerHTML = html;
+
+    // Fill in each category's ledger table (built separately so month
+    // columns render cleanly without re-parsing HTML strings above)
+    data.categories.forEach(function (cat, catIdx) {
+      const ledgers = (data.ledgersByCategory && data.ledgersByCategory[cat.name]) || [];
+      const table = document.getElementById('cat-section-' + catIdx + '-table');
+      let thtml = '<tr><th>Ledger</th><th class="num">Total (INR)</th></tr>';
+      ledgers.forEach(function (l) {
+        thtml += '<tr><td>' + l.ledger + '</td><td class="num">' + formatINR(l.total) + '</td></tr>';
+      });
+      thtml += '<tr class="total-row"><td>Total</td><td class="num">' + formatINR(cat.total) + '</td></tr>';
+      table.innerHTML = thtml;
+    });
   }
 
   function renderKPIs(kpis) {
