@@ -261,7 +261,7 @@
       </div>
 
       <div id="poSelectedNote" class="hint-box" style="display:none">
-        Material, quantity, amount, basic cost, discount, and CGST/SGST or IGST are taken from each checked item above — edit them right there if they differ from the PO; Total Amount updates automatically. Only "Other Charges" (e.g. freight) below applies to the whole delivery.
+        Material, quantity, amount, basic cost, discount, and GST or CGST/SGST or IGST are taken from each checked item above — edit them right there if they differ from the PO; Total Amount updates automatically. Only "Other Charges" (e.g. freight) below applies to the whole delivery.
       </div>
 
       <div id="manualItemFields">
@@ -470,11 +470,43 @@ window.addEventListener('beforeunload', function(e) {
 // groupKey -> {basic, discount, cgst, sgst, igst, total, error} element ids
 let financialFieldGroups = {};
 
-// Renders the same six-field markup (Basic Amount, Discount, CGST, SGST,
-// IGST, Total Amount) regardless of which section calls it. `ids` supplies
-// the element ids to use (so each section's ids stay unique on the page);
-// `basicValue` prefills Basic Amount (used by the PO-item section only —
-// Manual/Ad-hoc start blank, matching their existing behavior).
+// Renders one GST-family field (GST / CGST / SGST / IGST): a plain
+// numeric input plus an independent Percentage(%)/Amount(₹) mode
+// selector beside it. The input itself always holds a plain number —
+// the "%" vs fixed-currency meaning comes entirely from the paired
+// selector, never from a suffix typed into the input, so the two can
+// never disagree. financialRawValue() below combines the pair back
+// into the same "<number>" / "<number>%" string parseFinancialInput()
+// already expects, which is why that function (and the backend's
+// identical copy) needed no changes at all. Each field's selector has
+// its own id, so changing one field's mode never touches another's.
+function taxFieldHtml(ids, key, label) {
+  const valueId = ids[key];
+  const modeId = ids[key + 'Mode'];
+  return (
+    '<div style="flex:1;min-width:120px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">' + label + '</label>' +
+      '<div style="display:flex;gap:4px">' +
+        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + valueId + '" value="0" placeholder="e.g. 9 or 90" style="flex:1;min-width:0;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+        '<select class="grn-financial-mode" data-group="' + ids.group + '" id="' + modeId + '" style="flex:0 0 56px;padding:6px 2px;font-size:12.5px;border:1px solid var(--line);border-radius:6px;background:#fff">' +
+          '<option value="%">%</option>' +
+          '<option value="amount">₹</option>' +
+        '</select>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+// Renders the same Basic Amount / Discount / GST / CGST / SGST / IGST /
+// Total Amount markup regardless of which section calls it. `ids`
+// supplies the element ids to use (so each section's ids stay unique on
+// the page); `basicValue` prefills Basic Amount (used by the PO-item
+// section only — Manual/Ad-hoc start blank, matching their existing
+// behavior). GST is a 4th tax-entry field alongside the existing
+// CGST/SGST/IGST — mutually exclusive with them (see
+// computeFinancialValues()), for a line item invoiced with one combined
+// GST figure instead of a CGST+SGST or IGST split. Discount keeps its
+// original single-input "10% or 100" convention unchanged — only the
+// four GST-family fields get the new mode selector.
 function financialFieldsHtml(ids, basicValue) {
   return (
     '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">' +
@@ -486,15 +518,10 @@ function financialFieldsHtml(ids, basicValue) {
       '</div>' +
     '</div>' +
     '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">' +
-      '<div style="flex:1;min-width:80px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">CGST</label>' +
-        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.cgst + '" value="0" placeholder="e.g. 9% or 90" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
-      '</div>' +
-      '<div style="flex:1;min-width:80px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">SGST</label>' +
-        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.sgst + '" value="0" placeholder="e.g. 9% or 90" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
-      '</div>' +
-      '<div style="flex:1;min-width:80px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">IGST</label>' +
-        '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.igst + '" value="0" placeholder="e.g. 18% or 180" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
-      '</div>' +
+      taxFieldHtml(ids, 'gst', 'GST') +
+      taxFieldHtml(ids, 'cgst', 'CGST') +
+      taxFieldHtml(ids, 'sgst', 'SGST') +
+      taxFieldHtml(ids, 'igst', 'IGST') +
     '</div>' +
     '<div style="margin-top:6px">' +
       '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Total Amount</label>' +
@@ -539,23 +566,41 @@ function resolveFinancialAmount(parsed, base) {
   return parsed.isPercent ? (base * parsed.value / 100) : parsed.value;
 }
 
+// Combines a GST-family field's plain-number input with its paired mode
+// selector back into the "<number>" / "<number>%" string
+// parseFinancialInput() expects — the single point where the two
+// separate UI controls (value input + mode select) become one logical
+// value. Strips a manually-typed trailing "%" defensively (harmless
+// backward-compatibility, not required for normal use of the selector).
+function financialRawValue(valueEl, modeEl) {
+  const v = (valueEl.value || '').trim().replace(/%\s*$/, '');
+  if (v === '') return '';
+  return (modeEl && modeEl.value === '%') ? (v + '%') : v;
+}
+
 // Full parse + resolve + validate pass for one financial-field group,
 // shared by recalcFinancialFields() (drives the live UI) and
 // readFinancialFields() (drives the submitted payload's preview
 // total/gst), so the two can never disagree.
 //   Taxable Amount = Basic Amount - Discount
-//   Total Amount   = Taxable Amount + CGST + SGST + IGST
-// (only one side of CGST/SGST vs IGST can be non-zero — enforced below).
-// "used" flags are computed best-effort even when another field has an
-// error, so the CGST/SGST <-> IGST disable/enable state stays responsive
-// while the person is still typing.
+//   Total Amount   = Taxable Amount + GST + CGST + SGST + IGST
+// (only one of {GST}, {CGST and/or SGST}, {IGST} can be non-zero —
+// enforced below). "used" flags are computed best-effort even when
+// another field has an error, so the disable/enable state across all
+// four GST-family fields stays responsive while the person is still
+// typing.
 function computeFinancialValues(ids) {
   const basicEl = document.getElementById(ids.basic);
   const discountEl = document.getElementById(ids.discount);
+  const gstEl = document.getElementById(ids.gst);
+  const gstModeEl = document.getElementById(ids.gstMode);
   const cgstEl = document.getElementById(ids.cgst);
+  const cgstModeEl = document.getElementById(ids.cgstMode);
   const sgstEl = document.getElementById(ids.sgst);
+  const sgstModeEl = document.getElementById(ids.sgstMode);
   const igstEl = document.getElementById(ids.igst);
-  if (!basicEl || !discountEl || !cgstEl || !sgstEl || !igstEl) return null;
+  const igstModeEl = document.getElementById(ids.igstMode);
+  if (!basicEl || !discountEl || !gstEl || !cgstEl || !sgstEl || !igstEl) return null;
 
   let error = null;
 
@@ -574,54 +619,65 @@ function computeFinancialValues(ids) {
 
   const taxableAmount = basic - discountAmount;
 
-  const cgstParsed = parseFinancialInput(cgstEl.value, 'CGST');
+  const gstParsed = parseFinancialInput(financialRawValue(gstEl, gstModeEl), 'GST');
+  if (!error && gstParsed.error) error = gstParsed.error;
+  const cgstParsed = parseFinancialInput(financialRawValue(cgstEl, cgstModeEl), 'CGST');
   if (!error && cgstParsed.error) error = cgstParsed.error;
-  const sgstParsed = parseFinancialInput(sgstEl.value, 'SGST');
+  const sgstParsed = parseFinancialInput(financialRawValue(sgstEl, sgstModeEl), 'SGST');
   if (!error && sgstParsed.error) error = sgstParsed.error;
-  const igstParsed = parseFinancialInput(igstEl.value, 'IGST');
+  const igstParsed = parseFinancialInput(financialRawValue(igstEl, igstModeEl), 'IGST');
   if (!error && igstParsed.error) error = igstParsed.error;
 
+  const gstAmount = resolveFinancialAmount(gstParsed, taxableAmount);
   const cgstAmount = resolveFinancialAmount(cgstParsed, taxableAmount);
   const sgstAmount = resolveFinancialAmount(sgstParsed, taxableAmount);
   const igstAmount = resolveFinancialAmount(igstParsed, taxableAmount);
 
+  const gstUsed = gstAmount > 0;
   const cgstOrSgstUsed = cgstAmount > 0 || sgstAmount > 0;
   const igstUsed = igstAmount > 0;
-  if (!error && cgstOrSgstUsed && igstUsed) error = 'Use either CGST + SGST or IGST, not both.';
+  const taxModesUsed = (gstUsed ? 1 : 0) + (cgstOrSgstUsed ? 1 : 0) + (igstUsed ? 1 : 0);
+  if (!error && taxModesUsed > 1) error = 'Use either GST, CGST + SGST, or IGST — not more than one.';
 
-  const totalAmount = Math.max(taxableAmount + cgstAmount + sgstAmount + igstAmount, 0);
+  const totalAmount = Math.max(taxableAmount + gstAmount + cgstAmount + sgstAmount + igstAmount, 0);
 
   return {
     error: error, basic: basic, discountAmount: discountAmount, taxableAmount: taxableAmount,
-    cgstAmount: cgstAmount, sgstAmount: sgstAmount, igstAmount: igstAmount,
-    totalAmount: totalAmount, cgstOrSgstUsed: cgstOrSgstUsed, igstUsed: igstUsed,
+    gstAmount: gstAmount, cgstAmount: cgstAmount, sgstAmount: sgstAmount, igstAmount: igstAmount,
+    totalAmount: totalAmount, gstUsed: gstUsed, cgstOrSgstUsed: cgstOrSgstUsed, igstUsed: igstUsed,
   };
 }
 
 // Recomputes Total Amount for one financial-field group and validates it
 // (see computeFinancialValues() above for the formula). Also enforces
-// mutual exclusivity between CGST/SGST and IGST (Option B — whichever
-// side currently resolves to a real value disables and zeroes the
-// other), so entering both is not possible through the UI. On any
-// validation failure, shows an inline message and leaves Total Amount
-// blank rather than showing a misleading number.
+// mutual exclusivity across all four GST-family fields — GST vs
+// CGST/SGST vs IGST — by disabling and zeroing whichever fields aren't
+// the one currently in use, so entering more than one mode is not
+// possible through the UI. On any validation failure, shows an inline
+// message and leaves Total Amount blank rather than showing a
+// misleading number. Mode selectors themselves are never disabled —
+// only the value inputs — so a person can always freely switch a
+// currently-unused field's mode.
 function recalcFinancialFields(ids) {
   if (!ids) return;
+  const gstEl = document.getElementById(ids.gst);
   const cgstEl = document.getElementById(ids.cgst);
   const sgstEl = document.getElementById(ids.sgst);
   const igstEl = document.getElementById(ids.igst);
   const totalEl = document.getElementById(ids.total);
   const errorEl = document.getElementById(ids.error);
-  if (!cgstEl || !sgstEl || !igstEl || !totalEl) return;
+  if (!gstEl || !cgstEl || !sgstEl || !igstEl || !totalEl) return;
 
   const result = computeFinancialValues(ids);
   if (!result) return;
 
-  cgstEl.disabled = result.igstUsed;
-  sgstEl.disabled = result.igstUsed;
-  igstEl.disabled = result.cgstOrSgstUsed;
-  if (result.igstUsed) { cgstEl.value = '0'; sgstEl.value = '0'; }
-  if (result.cgstOrSgstUsed) { igstEl.value = '0'; }
+  gstEl.disabled = result.cgstOrSgstUsed || result.igstUsed;
+  cgstEl.disabled = result.gstUsed || result.igstUsed;
+  sgstEl.disabled = result.gstUsed || result.igstUsed;
+  igstEl.disabled = result.gstUsed || result.cgstOrSgstUsed;
+  if (result.cgstOrSgstUsed || result.igstUsed) { gstEl.value = '0'; }
+  if (result.gstUsed || result.igstUsed) { cgstEl.value = '0'; sgstEl.value = '0'; }
+  if (result.gstUsed || result.cgstOrSgstUsed) { igstEl.value = '0'; }
 
   if (errorEl) {
     errorEl.style.display = result.error ? 'block' : 'none';
@@ -632,39 +688,41 @@ function recalcFinancialFields(ids) {
 }
 
 // Reads one financial-field group's current values into the shape
-// grnCreate() expects. Discount/CGST/SGST/IGST are sent as the RAW typed
-// strings (e.g. "10%" or "100") — the backend independently parses and
-// resolves them itself (never trusts this page's own resolution). The
-// legacy "GST" field is still populated, as the resolved CGST + SGST +
-// IGST combined, purely as a preview — the backend recomputes and
-// overwrites it from the same raw values regardless.
+// grnCreate() expects. Discount/GST/CGST/SGST/IGST are sent as the RAW
+// typed strings combined with their mode selector (e.g. "10%" or "100",
+// via financialRawValue()) — the backend independently parses and
+// resolves them itself (never trusts this page's own resolution).
 function readFinancialFields(ids) {
   const basicAmount = document.getElementById(ids.basic).value.trim();
   const discount = document.getElementById(ids.discount).value.trim();
-  const cgst = document.getElementById(ids.cgst).value.trim();
-  const sgst = document.getElementById(ids.sgst).value.trim();
-  const igst = document.getElementById(ids.igst).value.trim();
+  const gst = financialRawValue(document.getElementById(ids.gst), document.getElementById(ids.gstMode));
+  const cgst = financialRawValue(document.getElementById(ids.cgst), document.getElementById(ids.cgstMode));
+  const sgst = financialRawValue(document.getElementById(ids.sgst), document.getElementById(ids.sgstMode));
+  const igst = financialRawValue(document.getElementById(ids.igst), document.getElementById(ids.igstMode));
   const totalAmount = document.getElementById(ids.total).value.trim();
-  const result = computeFinancialValues(ids);
-  const combinedGst = result && !result.error
-    ? Math.round((result.cgstAmount + result.sgstAmount + result.igstAmount) * 100) / 100
-    : 0;
   return {
     basicAmount: basicAmount,
     discount: discount,
+    gst: gst,
     cgst: cgst,
     sgst: sgst,
     igst: igst,
     totalAmount: totalAmount,
-    gst: combinedGst ? String(combinedGst) : '',
   };
 }
 
 // Delegated on the whole form so it works for every financial-field group
 // in all three sections (Selected PO Items, Manual Item, Ad-hoc Item),
 // including ones created after page load (PO items, manual item blocks).
+// Two listeners: 'input' for the value fields (fires as the person
+// types) and 'change' for the mode <select> dropdowns (selects don't
+// fire meaningful 'input' events for a user selection in every browser).
 document.getElementById('grnForm').addEventListener('input', function(e) {
   if (!e.target.classList || !e.target.classList.contains('grn-financial-input')) return;
+  recalcFinancialFields(financialFieldGroups[e.target.getAttribute('data-group')]);
+});
+document.getElementById('grnForm').addEventListener('change', function(e) {
+  if (!e.target.classList || !e.target.classList.contains('grn-financial-mode')) return;
   recalcFinancialFields(financialFieldGroups[e.target.getAttribute('data-group')]);
 });
 
@@ -751,9 +809,14 @@ document.getElementById('f-po-select').addEventListener('change', function() {
       group: groupKey,
       basic: 'po-item-basic-' + i,
       discount: 'po-item-discount-' + i,
+      gst: 'po-item-gst-' + i,
+      gstMode: 'po-item-gst-mode-' + i,
       cgst: 'po-item-cgst-' + i,
+      cgstMode: 'po-item-cgst-mode-' + i,
       sgst: 'po-item-sgst-' + i,
+      sgstMode: 'po-item-sgst-mode-' + i,
       igst: 'po-item-igst-' + i,
+      igstMode: 'po-item-igst-mode-' + i,
       total: 'po-item-total-' + i,
       error: 'po-item-error-' + i,
     };
@@ -866,7 +929,10 @@ document.getElementById('f-adhoc-toggle').addEventListener('change', function() 
 // toggle is currently checked, same as the rest of #adhocItemFields.
 const adhocFinancialIds = {
   group: 'adhoc', basic: 'f-adhoc-basic', discount: 'f-adhoc-discount',
-  cgst: 'f-adhoc-cgst', sgst: 'f-adhoc-sgst', igst: 'f-adhoc-igst',
+  gst: 'f-adhoc-gst', gstMode: 'f-adhoc-gst-mode',
+  cgst: 'f-adhoc-cgst', cgstMode: 'f-adhoc-cgst-mode',
+  sgst: 'f-adhoc-sgst', sgstMode: 'f-adhoc-sgst-mode',
+  igst: 'f-adhoc-igst', igstMode: 'f-adhoc-igst-mode',
   total: 'f-adhoc-total', error: 'f-adhoc-error',
 };
 financialFieldGroups.adhoc = adhocFinancialIds;
@@ -891,9 +957,14 @@ function addManualItemBlock() {
     group: groupKey,
     basic: 'manual-basic-' + idx,
     discount: 'manual-discount-' + idx,
+    gst: 'manual-gst-' + idx,
+    gstMode: 'manual-gst-mode-' + idx,
     cgst: 'manual-cgst-' + idx,
+    cgstMode: 'manual-cgst-mode-' + idx,
     sgst: 'manual-sgst-' + idx,
+    sgstMode: 'manual-sgst-mode-' + idx,
     igst: 'manual-igst-' + idx,
+    igstMode: 'manual-igst-mode-' + idx,
     total: 'manual-total-' + idx,
     error: 'manual-error-' + idx,
   };
@@ -1038,7 +1109,7 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   if (invalidGroupKey) {
     submitBtn.disabled = false;
     submitBtn.textContent = 'Submit GRN';
-    showMsg('Please fix the highlighted Basic Amount / Discount / CGST / SGST / IGST value(s) before submitting.', 'error');
+    showMsg('Please fix the highlighted Basic Amount / Discount / GST / CGST / SGST / IGST value(s) before submitting.', 'error');
     return;
   }
 
