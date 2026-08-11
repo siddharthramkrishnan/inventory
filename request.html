@@ -106,7 +106,14 @@
 
   /* search */
   .search-wrap { position: relative; }
-  .search-input {
+  /* input[type=text].search-input (not just .search-input) so this wins
+     over the generic "select, input[type=number], input[type=text],
+     textarea" rule below, which has higher specificity
+     (type+attribute+class beats a lone class) and was silently
+     collapsing the 42px left padding reserved for .search-icon down to
+     13px — the actual cause of the icon/text overlap. Same root cause
+     and same fix already applied to index.html's search box. */
+  input[type=text].search-input {
     width: 100%;
     border: 2px solid var(--border);
     border-radius: 10px;
