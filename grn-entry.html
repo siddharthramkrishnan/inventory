@@ -124,6 +124,7 @@
     margin-top:6px;
   }
   button.submit:disabled{ opacity:0.6; cursor:default; }
+  .grn-financial-input:disabled{ background:#f0f1ef; color:var(--muted); cursor:not-allowed; }
   .msg{
     padding:12px 14px;
     border-radius:8px;
@@ -517,6 +518,34 @@ function financialFieldsHtml(ids, basicValue) {
         '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + ids.discount + '" value="0" placeholder="e.g. 10% or 100" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
       '</div>' +
     '</div>' +
+    // Independently selectable Tax Type checkboxes — GST, CGST, SGST, and
+    // IGST are four separate checkboxes, not one combined mode selector.
+    // GST is checked by default (matches the sheet's own single legacy
+    // "GST" column being the common case); CGST/SGST/IGST start unchecked
+    // and locked until the person deliberately checks one. Checking a box
+    // only enables THAT field's value input — recalcFinancialFields()
+    // below reads each checkbox independently, and separately disables
+    // whichever OTHER checkboxes would create an invalid combination (GST
+    // and IGST are exclusive with everything, including each other; CGST
+    // and SGST may be checked together — matching the backend's existing
+    // mutual-exclusivity rule exactly, see computeFinancialValues()).
+    '<div style="margin-top:6px">' +
+      '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px">Tax Type</label>' +
+      '<div style="display:flex;gap:14px;flex-wrap:wrap">' +
+        '<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer">' +
+          '<input type="checkbox" class="grn-tax-check" data-group="' + ids.group + '" id="' + ids.gstCheck + '" checked> GST' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer">' +
+          '<input type="checkbox" class="grn-tax-check" data-group="' + ids.group + '" id="' + ids.cgstCheck + '"> CGST' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer">' +
+          '<input type="checkbox" class="grn-tax-check" data-group="' + ids.group + '" id="' + ids.sgstCheck + '"> SGST' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer">' +
+          '<input type="checkbox" class="grn-tax-check" data-group="' + ids.group + '" id="' + ids.igstCheck + '"> IGST' +
+        '</label>' +
+      '</div>' +
+    '</div>' +
     '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">' +
       taxFieldHtml(ids, 'gst', 'GST') +
       taxFieldHtml(ids, 'cgst', 'CGST') +
@@ -600,6 +629,10 @@ function computeFinancialValues(ids) {
   const sgstModeEl = document.getElementById(ids.sgstMode);
   const igstEl = document.getElementById(ids.igst);
   const igstModeEl = document.getElementById(ids.igstMode);
+  const gstCheckEl = document.getElementById(ids.gstCheck);
+  const cgstCheckEl = document.getElementById(ids.cgstCheck);
+  const sgstCheckEl = document.getElementById(ids.sgstCheck);
+  const igstCheckEl = document.getElementById(ids.igstCheck);
   if (!basicEl || !discountEl || !gstEl || !cgstEl || !sgstEl || !igstEl) return null;
 
   let error = null;
@@ -633,9 +666,26 @@ function computeFinancialValues(ids) {
   const sgstAmount = resolveFinancialAmount(sgstParsed, taxableAmount);
   const igstAmount = resolveFinancialAmount(igstParsed, taxableAmount);
 
-  const gstUsed = gstAmount > 0;
-  const cgstOrSgstUsed = cgstAmount > 0 || sgstAmount > 0;
-  const igstUsed = igstAmount > 0;
+  // Which tax field(s) are "in use" is driven EXPLICITLY by four
+  // independent Tax Type checkboxes (see financialFieldsHtml()) — GST,
+  // CGST, SGST, and IGST each have their own checkbox, not one combined
+  // mode selector. Not inferred from which field happens to hold a
+  // value > 0 — that inference could never lock a field BEFORE the person
+  // had typed something into some other field, so a fresh item started
+  // fully editable instead of locked-by-default. cgstUsed/sgstUsed stay
+  // independent (recalcFinancialFields() enables/disables each field on
+  // its own checkbox alone); cgstOrSgstUsed below only exists to mirror
+  // the backend's own grouping of "CGST and/or SGST" as a single tax mode
+  // for the mutual-exclusivity check, matching validateGrnFinancialFields()
+  // in backend/Code.gs/Code.js exactly. Falls back to the old amount-based
+  // inference only if a group has no checkboxes at all (defensive; every
+  // current call site renders them via financialFieldsHtml()).
+  const hasCheckboxes = !!(gstCheckEl && cgstCheckEl && sgstCheckEl && igstCheckEl);
+  const gstUsed = hasCheckboxes ? gstCheckEl.checked : gstAmount > 0;
+  const cgstUsed = hasCheckboxes ? cgstCheckEl.checked : cgstAmount > 0;
+  const sgstUsed = hasCheckboxes ? sgstCheckEl.checked : sgstAmount > 0;
+  const igstUsed = hasCheckboxes ? igstCheckEl.checked : igstAmount > 0;
+  const cgstOrSgstUsed = cgstUsed || sgstUsed;
   const taxModesUsed = (gstUsed ? 1 : 0) + (cgstOrSgstUsed ? 1 : 0) + (igstUsed ? 1 : 0);
   if (!error && taxModesUsed > 1) error = 'Use either GST, CGST + SGST, or IGST — not more than one.';
 
@@ -644,26 +694,42 @@ function computeFinancialValues(ids) {
   return {
     error: error, basic: basic, discountAmount: discountAmount, taxableAmount: taxableAmount,
     gstAmount: gstAmount, cgstAmount: cgstAmount, sgstAmount: sgstAmount, igstAmount: igstAmount,
-    totalAmount: totalAmount, gstUsed: gstUsed, cgstOrSgstUsed: cgstOrSgstUsed, igstUsed: igstUsed,
+    totalAmount: totalAmount, gstUsed: gstUsed, cgstUsed: cgstUsed, sgstUsed: sgstUsed,
+    cgstOrSgstUsed: cgstOrSgstUsed, igstUsed: igstUsed,
   };
 }
 
 // Recomputes Total Amount for one financial-field group and validates it
-// (see computeFinancialValues() above for the formula). Also enforces
-// mutual exclusivity across all four GST-family fields — GST vs
-// CGST/SGST vs IGST — by disabling and zeroing whichever fields aren't
-// the one currently in use, so entering more than one mode is not
-// possible through the UI. On any validation failure, shows an inline
-// message and leaves Total Amount blank rather than showing a
-// misleading number. Mode selectors themselves are never disabled —
-// only the value inputs — so a person can always freely switch a
-// currently-unused field's mode.
+// (see computeFinancialValues() above for the formula). Also enforces the
+// Tax Type checkbox selection: each of GST/CGST/SGST/IGST's value input is
+// enabled ONLY while its own checkbox is checked (computeFinancialValues()
+// derives gstUsed/cgstUsed/sgstUsed/igstUsed straight from the four
+// checkboxes, not from which field happens to hold a value) — and a value
+// input's field is zeroed the moment its checkbox is unchecked, so a value
+// typed while checked can never survive into the submitted payload or the
+// Total Amount math after unchecking. Separately, each CHECKBOX itself is
+// disabled whenever checking it would create a combination the backend
+// rejects (GST and IGST are exclusive with every other box, including
+// each other; CGST and SGST may both be checked together) — so an invalid
+// combination is never selectable in the first place, not just corrected
+// after the fact. Runs on every keystroke in an active field too, which is
+// harmless — the inactive fields/checkboxes are already zeroed/disabled,
+// so re-applying is a no-op. On any validation failure, shows an inline
+// message and leaves Total Amount blank rather than showing a misleading
+// number. The Percentage(%)/Amount(₹) mode selectors are never disabled —
+// only the four GST-family value inputs and, per the rule above, whichever
+// checkboxes are currently blocked — so a person can always freely change
+// their tax type selection.
 function recalcFinancialFields(ids) {
   if (!ids) return;
   const gstEl = document.getElementById(ids.gst);
   const cgstEl = document.getElementById(ids.cgst);
   const sgstEl = document.getElementById(ids.sgst);
   const igstEl = document.getElementById(ids.igst);
+  const gstCheckEl = document.getElementById(ids.gstCheck);
+  const cgstCheckEl = document.getElementById(ids.cgstCheck);
+  const sgstCheckEl = document.getElementById(ids.sgstCheck);
+  const igstCheckEl = document.getElementById(ids.igstCheck);
   const totalEl = document.getElementById(ids.total);
   const errorEl = document.getElementById(ids.error);
   if (!gstEl || !cgstEl || !sgstEl || !igstEl || !totalEl) return;
@@ -671,13 +737,25 @@ function recalcFinancialFields(ids) {
   const result = computeFinancialValues(ids);
   if (!result) return;
 
-  gstEl.disabled = result.cgstOrSgstUsed || result.igstUsed;
-  cgstEl.disabled = result.gstUsed || result.igstUsed;
-  sgstEl.disabled = result.gstUsed || result.igstUsed;
-  igstEl.disabled = result.gstUsed || result.cgstOrSgstUsed;
-  if (result.cgstOrSgstUsed || result.igstUsed) { gstEl.value = '0'; }
-  if (result.gstUsed || result.igstUsed) { cgstEl.value = '0'; sgstEl.value = '0'; }
-  if (result.gstUsed || result.cgstOrSgstUsed) { igstEl.value = '0'; }
+  // Value inputs: each enabled/zeroed independently, driven solely by its
+  // OWN checkbox — CGST and SGST are no longer tied together.
+  gstEl.disabled = !result.gstUsed;
+  cgstEl.disabled = !result.cgstUsed;
+  sgstEl.disabled = !result.sgstUsed;
+  igstEl.disabled = !result.igstUsed;
+  if (!result.gstUsed) { gstEl.value = '0'; }
+  if (!result.cgstUsed) { cgstEl.value = '0'; }
+  if (!result.sgstUsed) { sgstEl.value = '0'; }
+  if (!result.igstUsed) { igstEl.value = '0'; }
+
+  // Checkboxes: disable exactly the ones that would form an invalid
+  // combination with whatever is currently checked (never a box's own
+  // checked state, so a checked box always stays uncheckable-by-the-user
+  // -> checkable again, i.e. it can always be turned back off).
+  if (gstCheckEl) gstCheckEl.disabled = result.cgstUsed || result.sgstUsed || result.igstUsed;
+  if (igstCheckEl) igstCheckEl.disabled = result.gstUsed || result.cgstUsed || result.sgstUsed;
+  if (cgstCheckEl) cgstCheckEl.disabled = result.gstUsed || result.igstUsed;
+  if (sgstCheckEl) sgstCheckEl.disabled = result.gstUsed || result.igstUsed;
 
   if (errorEl) {
     errorEl.style.display = result.error ? 'block' : 'none';
@@ -714,15 +792,17 @@ function readFinancialFields(ids) {
 // Delegated on the whole form so it works for every financial-field group
 // in all three sections (Selected PO Items, Manual Item, Ad-hoc Item),
 // including ones created after page load (PO items, manual item blocks).
-// Two listeners: 'input' for the value fields (fires as the person
-// types) and 'change' for the mode <select> dropdowns (selects don't
-// fire meaningful 'input' events for a user selection in every browser).
+// Two listeners: 'input' for the value fields (fires as the person types)
+// and 'change' for the %/₹ mode <select> dropdowns and the Tax Type
+// <input type="checkbox"> boxes (neither fires a meaningful 'input' event
+// for a user interaction in every browser).
 document.getElementById('grnForm').addEventListener('input', function(e) {
   if (!e.target.classList || !e.target.classList.contains('grn-financial-input')) return;
   recalcFinancialFields(financialFieldGroups[e.target.getAttribute('data-group')]);
 });
 document.getElementById('grnForm').addEventListener('change', function(e) {
-  if (!e.target.classList || !e.target.classList.contains('grn-financial-mode')) return;
+  if (!e.target.classList) return;
+  if (!e.target.classList.contains('grn-financial-mode') && !e.target.classList.contains('grn-tax-check')) return;
   recalcFinancialFields(financialFieldGroups[e.target.getAttribute('data-group')]);
 });
 
@@ -817,6 +897,10 @@ document.getElementById('f-po-select').addEventListener('change', function() {
       sgstMode: 'po-item-sgst-mode-' + i,
       igst: 'po-item-igst-' + i,
       igstMode: 'po-item-igst-mode-' + i,
+      gstCheck: 'po-item-gst-check-' + i,
+      cgstCheck: 'po-item-cgst-check-' + i,
+      sgstCheck: 'po-item-sgst-check-' + i,
+      igstCheck: 'po-item-igst-check-' + i,
       total: 'po-item-total-' + i,
       error: 'po-item-error-' + i,
     };
@@ -933,6 +1017,8 @@ const adhocFinancialIds = {
   cgst: 'f-adhoc-cgst', cgstMode: 'f-adhoc-cgst-mode',
   sgst: 'f-adhoc-sgst', sgstMode: 'f-adhoc-sgst-mode',
   igst: 'f-adhoc-igst', igstMode: 'f-adhoc-igst-mode',
+  gstCheck: 'f-adhoc-gst-check', cgstCheck: 'f-adhoc-cgst-check',
+  sgstCheck: 'f-adhoc-sgst-check', igstCheck: 'f-adhoc-igst-check',
   total: 'f-adhoc-total', error: 'f-adhoc-error',
 };
 financialFieldGroups.adhoc = adhocFinancialIds;
@@ -965,6 +1051,10 @@ function addManualItemBlock() {
     sgstMode: 'manual-sgst-mode-' + idx,
     igst: 'manual-igst-' + idx,
     igstMode: 'manual-igst-mode-' + idx,
+    gstCheck: 'manual-gst-check-' + idx,
+    cgstCheck: 'manual-cgst-check-' + idx,
+    sgstCheck: 'manual-sgst-check-' + idx,
+    igstCheck: 'manual-igst-check-' + idx,
     total: 'manual-total-' + idx,
     error: 'manual-error-' + idx,
   };
