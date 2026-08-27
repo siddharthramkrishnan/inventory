@@ -230,8 +230,8 @@
           <input type="text" id="f-sl-no" placeholder="Auto-suggested">
         </div>
         <div class="field">
-          <label>Inward Entry No. <span class="hint">Optional internal tracking number, if your team keeps one</span></label>
-          <input type="text" id="f-inward-entry-no">
+          <label>Inward Entry No. <span class="hint">Assigned automatically on submission — you don't need to enter this</span></label>
+          <input type="text" id="f-inward-entry-no" class="grn-financial-input" value="Automatically generated on submission" disabled readonly>
         </div>
       </div>
       <div class="row2">
@@ -1135,7 +1135,11 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     invoiceDate: toDDMMYYYY(document.getElementById('f-invoice-date').value),
     poNo: document.getElementById('f-po-no').value.trim(),
     requestedBy: document.getElementById('f-requested-by').value.trim(),
-    inwardEntryNo: document.getElementById('f-inward-entry-no').value.trim(),
+    // Inward Entry No. is no longer sent from here at all -- it's
+    // generated server-side (grnCreate() -> getNextInwardEntryNo(),
+    // inside a LockService lock) and the backend ignores/overwrites any
+    // client-supplied value regardless, so there's nothing meaningful to
+    // send. The field above is a disabled, display-only placeholder.
     catalogueLotNo: document.getElementById('f-catalogue-lot-no').value.trim(),
     grnNo: document.getElementById('f-grn-no').value.trim(),
     partyName: document.getElementById('f-party-name').value.trim(),
@@ -1250,25 +1254,36 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
 
   submitBtn.textContent = itemPayloads.length > 1 ? ('Submitting ' + itemPayloads.length + ' items…') : 'Submitting…';
 
-  const results = [];
-  for (const payload of itemPayloads) {
-    const result = await jsonp('grncreate', { data: JSON.stringify(payload) });
-    results.push(result);
-  }
+  // FIX: ALL items in this submission are now sent in ONE grncreate call
+  // (data.items, an array) instead of one call per item. This is required
+  // so the backend's single LockService lock can cover allocating ONE
+  // base Inward Entry No. for the whole submission AND writing every
+  // item's row atomically -- a lock can't span multiple separate HTTP
+  // calls, so the old per-item-call loop could never guarantee that.
+  // Every item payload still carries the full baseData (tabName, grnNo,
+  // etc.) exactly as before; the backend reads shared fields from the
+  // first item only.
+  const result = await jsonp('grncreate', { data: JSON.stringify({ items: itemPayloads }) });
 
   submitBtn.disabled = false;
   submitBtn.textContent = 'Submit GRN';
 
-  const successes = results.filter(function(r) { return r && r.status === 'success'; });
-  const failures = results.filter(function(r) { return !r || r.status !== 'success'; });
-  const allSkipped = successes.reduce(function(acc, r) { return acc.concat(r.skippedFields || []); }, []);
-
-  if (successes.length > 0 && failures.length === 0) {
-    let msg = successes.length > 1
-      ? '✅ ' + successes.length + ' items logged under GRN ' + baseData.grnNo + ' in "' + baseData.tabName + '".'
-      : '✅ GRN ' + successes[0].grnNo + ' logged in "' + successes[0].tabName + '".';
-    if (allSkipped.length) {
-      msg += ' Note: this tab has no matching column for: ' + Array.from(new Set(allSkipped)).join(', ') + ' — those values were not saved.';
+  if (result && result.status === 'success') {
+    // ONE base Inward Entry No. per submission -- bare (e.g. "6458") for
+    // a single item, or suffixed per item (e.g. "6459_1", "6459_2") for a
+    // multi-item submission. Server-assigned; nothing here is guessed or
+    // recomputed client-side.
+    const inwardNosText = result.baseInwardEntryNo
+      ? (itemPayloads.length > 1
+          ? ' (Inward Entry No. ' + result.baseInwardEntryNo + ', items ' + result.baseInwardEntryNo + '_1–' + result.baseInwardEntryNo + '_' + itemPayloads.length + ')'
+          : ' (Inward Entry No. ' + result.baseInwardEntryNo + ')')
+      : '';
+    let msg = itemPayloads.length > 1
+      ? '✅ ' + itemPayloads.length + ' items logged under GRN ' + result.grnNo + ' in "' + result.tabName + '"' + inwardNosText + '.'
+      : '✅ GRN ' + result.grnNo + ' logged in "' + result.tabName + '"' + inwardNosText + '.';
+    const skipped = result.skippedFields || [];
+    if (skipped.length) {
+      msg += ' Note: this tab has no matching column for: ' + Array.from(new Set(skipped)).join(', ') + ' — those values were not saved.';
     }
     showMsg(msg, 'success');
     formDirty = false; // successful submission — no unsaved changes left to warn about
@@ -1277,10 +1292,12 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     document.getElementById('manualItemsContainer').innerHTML = '';
     addManualItemBlock(); // back to a single fresh block, matching the initial page state
     refreshSuggestions(true);
-  } else if (successes.length > 0 && failures.length > 0) {
-    showMsg('⚠️ ' + successes.length + ' item(s) saved, but ' + failures.length + ' failed: ' + (failures[0].message || 'unknown error') + '. Check the sheet before retrying the failed item(s).', 'error');
   } else {
-    showMsg('❌ ' + ((results[0] && results[0].message) || 'Something went wrong — please check the sheet directly before retrying.'), 'error');
+    // The whole submission is now all-or-nothing (validated and written
+    // as one batch) -- so there is no longer a "some items saved, some
+    // failed" partial state to report; a failure here means nothing in
+    // this submission was written.
+    showMsg('❌ ' + ((result && result.message) || 'Something went wrong — please check the sheet directly before retrying.'), 'error');
   }
 });
 </script>
