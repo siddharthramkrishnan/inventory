@@ -176,6 +176,10 @@
               <label>Quantity</label>
               <input type="text" id="f-adhoc-quantity" placeholder="e.g. 5">
             </div>
+            <div class="field">
+              <label>Catalogue / Lot / Batch No.</label>
+              <input type="text" id="f-adhoc-catalogue-lot-no">
+            </div>
             <div id="adhocFinancialFields"></div>
           </div>
         </div>
@@ -248,10 +252,6 @@
         </div>
       </div>
       <button type="button" class="suggest-btn" id="suggestBtn">↻ Re-suggest Sl No. / GRN No. for this category + prefix</button>
-      <div class="field" style="margin-top:12px">
-        <label>Catalogue / Lot No. <span class="hint">The batch/lot number printed on the item's label, if any</span></label>
-        <input type="text" id="f-catalogue-lot-no">
-      </div>
     </div>
 
     <div class="card">
@@ -905,8 +905,9 @@ document.getElementById('f-po-select').addEventListener('change', function() {
       error: 'po-item-error-' + i,
     };
     const qtyId = 'po-item-qty-' + i;
+    const catalogueLotNoId = 'po-item-catalogue-' + i;
     financialFieldGroups[groupKey] = ids;
-    activePOItemsByCheckboxId[cbId] = { item: item, qtyId: qtyId, poNo: po.poNo, financialGroupKey: groupKey };
+    activePOItemsByCheckboxId[cbId] = { item: item, qtyId: qtyId, catalogueLotNoId: catalogueLotNoId, poNo: po.poNo, financialGroupKey: groupKey };
 
     const hasBalanceInfo = item.remainingQty !== undefined;
     const defaultQty = hasBalanceInfo ? item.remainingQty : item.quantity;
@@ -931,6 +932,14 @@ document.getElementById('f-po-select').addEventListener('change', function() {
       '<div style="margin-top:6px">' +
         '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Quantity received in THIS delivery</label>' +
         '<input type="text" id="' + qtyId + '" value="' + defaultQty + '" style="width:120px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+      '</div>' +
+      // Catalogue / Lot / Batch No. is per-item, not shared across the
+      // whole GRN -- one GRN can bundle several different orders, each
+      // with its own batch/lot number printed on that specific item's
+      // label. Independent input per item, same as Quantity above.
+      '<div style="margin-top:6px">' +
+        '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Catalogue / Lot / Batch No.</label>' +
+        '<input type="text" id="' + catalogueLotNoId + '" style="width:160px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
       '</div>' +
       // Basic Amount, Discount, CGST/SGST/IGST are per-item, not shared
       // across the whole GRN — different items on the same invoice can
@@ -1082,6 +1091,13 @@ function addManualItemBlock() {
         '<input type="text" id="manual-invamt-' + idx + '" placeholder="e.g. 4500.00">' +
       '</div>' +
     '</div>' +
+    // Catalogue / Lot / Batch No. is per-item, not shared across the
+    // whole GRN -- one GRN can bundle several different orders, each with
+    // its own batch/lot number. Independent input per item.
+    '<div class="field">' +
+      '<label>Catalogue / Lot / Batch No.</label>' +
+      '<input type="text" id="manual-catalogue-' + idx + '">' +
+    '</div>' +
     // Same shared financial-fields block used by the Selected PO Items and
     // Ad-hoc Item sections (financialFieldsHtml()) — Basic Amount starts
     // blank here (no PO amount to prefill from), Discount/CGST/SGST/IGST
@@ -1140,7 +1156,11 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     // inside a LockService lock) and the backend ignores/overwrites any
     // client-supplied value regardless, so there's nothing meaningful to
     // send. The field above is a disabled, display-only placeholder.
-    catalogueLotNo: document.getElementById('f-catalogue-lot-no').value.trim(),
+    //
+    // Catalogue/Lot/Batch No. is no longer a GRN-level field either --
+    // one GRN can bundle several different orders, each with its own
+    // batch/lot number, so this is now read per-item (see the three
+    // itemPayloads-building blocks below) instead of once here.
     grnNo: document.getElementById('f-grn-no').value.trim(),
     partyName: document.getElementById('f-party-name').value.trim(),
     receivedBy: document.getElementById('f-received-by').value.trim(),
@@ -1218,6 +1238,9 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
         materialDescription: item.description || '',
         quantity: quantity,
         invoiceAmount: item.amount || '',
+        // Independent per item -- see the comment at baseData above for
+        // why this moved off the GRN-level field.
+        catalogueLotNo: document.getElementById(entry.catalogueLotNoId).value.trim(),
       }, readFinancialFields(financialFieldGroups[entry.financialGroupKey]));
     });
   } else if (!poIsSelected) {
@@ -1228,6 +1251,7 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
       return Object.assign({}, baseData, {
         materialDescription: desc,
         quantity: document.getElementById('manual-qty-' + idx).value.trim(),
+        catalogueLotNo: document.getElementById('manual-catalogue-' + idx).value.trim(),
         invoiceAmount: document.getElementById('manual-invamt-' + idx).value.trim(),
       }, readFinancialFields(financialFieldGroups['manual-' + idx]));
     });
@@ -1241,6 +1265,7 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     itemPayloads.push(Object.assign({}, baseData, {
       materialDescription: '[Not on PO] ' + adhocDesc,
       quantity: document.getElementById('f-adhoc-quantity').value.trim(),
+      catalogueLotNo: document.getElementById('f-adhoc-catalogue-lot-no').value.trim(),
       invoiceAmount: '',
     }, readFinancialFields(financialFieldGroups.adhoc)));
   }
