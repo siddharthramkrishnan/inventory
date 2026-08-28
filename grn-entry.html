@@ -180,6 +180,10 @@
               <label>Catalogue / Lot / Batch No.</label>
               <input type="text" id="f-adhoc-catalogue-lot-no">
             </div>
+            <div class="field">
+              <label>Expiry Date <span class="hint">DD/MM/YYYY or MM/YYYY</span></label>
+              <input type="text" id="f-adhoc-expiry-date" placeholder="DD/MM/YYYY or MM/YYYY">
+            </div>
             <div id="adhocFinancialFields"></div>
           </div>
         </div>
@@ -262,22 +266,22 @@
       </div>
 
       <div id="poSelectedNote" class="hint-box" style="display:none">
-        Material, quantity, amount, basic cost, discount, and GST or CGST/SGST or IGST are taken from each checked item above — edit them right there if they differ from the PO; Total Amount updates automatically. Only "Other Charges" (e.g. freight) below applies to the whole delivery.
+        Quantity, catalogue/lot/batch no., expiry date, basic cost, discount, and GST or CGST/SGST or IGST are taken from each checked item above — edit them right there if they differ from the PO; Total Amount updates automatically. Invoice Amount and "Other Charges" (e.g. freight) below apply once to the whole delivery.
       </div>
 
       <div id="manualItemFields">
         <div id="manualItemsContainer"></div>
         <button type="button" id="addManualItemBtn" style="background:none;border:1px dashed var(--line);color:var(--accent);font-size:13px;padding:8px 12px;border-radius:8px;cursor:pointer;width:100%;margin-top:4px">+ Add another item (same GRN No., different item)</button>
       </div>
+      <div class="field">
+        <label>Invoice Amount <span class="hint">One total for the whole GRN, from the vendor's invoice</span></label>
+        <input type="text" id="f-invoice-amount" placeholder="e.g. 4500.00">
+      </div>
       <div class="row2">
         <div class="field">
           <label>Other Charges <span class="hint">Freight, etc. — applies once to the whole delivery</span></label>
           <input type="text" id="f-other-charges">
         </div>
-      </div>
-      <div class="field">
-        <label>Expiry Date <span class="hint">Batch/lot expiry, if applicable</span></label>
-        <input type="date" id="f-exp-date">
       </div>
     </div>
 
@@ -906,8 +910,9 @@ document.getElementById('f-po-select').addEventListener('change', function() {
     };
     const qtyId = 'po-item-qty-' + i;
     const catalogueLotNoId = 'po-item-catalogue-' + i;
+    const expiryDateId = 'po-item-expiry-' + i;
     financialFieldGroups[groupKey] = ids;
-    activePOItemsByCheckboxId[cbId] = { item: item, qtyId: qtyId, catalogueLotNoId: catalogueLotNoId, poNo: po.poNo, financialGroupKey: groupKey };
+    activePOItemsByCheckboxId[cbId] = { item: item, qtyId: qtyId, catalogueLotNoId: catalogueLotNoId, expiryDateId: expiryDateId, poNo: po.poNo, financialGroupKey: groupKey };
 
     const hasBalanceInfo = item.remainingQty !== undefined;
     const defaultQty = hasBalanceInfo ? item.remainingQty : item.quantity;
@@ -940,6 +945,15 @@ document.getElementById('f-po-select').addEventListener('change', function() {
       '<div style="margin-top:6px">' +
         '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Catalogue / Lot / Batch No.</label>' +
         '<input type="text" id="' + catalogueLotNoId + '" style="width:160px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
+      '</div>' +
+      // Expiry Date is per-item too, not shared -- different items in the
+      // same delivery can have different batch expiries. Free-text (not
+      // <input type="date">) so a month/year-only expiry ("09/2028") can
+      // be entered without forcing a fabricated day-of-month; validated at
+      // submit time by isValidExpiryDateInput() below, exactly as typed.
+      '<div style="margin-top:6px">' +
+        '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Expiry Date <span class="hint">DD/MM/YYYY or MM/YYYY</span></label>' +
+        '<input type="text" id="' + expiryDateId + '" placeholder="DD/MM/YYYY or MM/YYYY" style="width:160px;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
       '</div>' +
       // Basic Amount, Discount, CGST/SGST/IGST are per-item, not shared
       // across the whole GRN — different items on the same invoice can
@@ -1081,15 +1095,9 @@ function addManualItemBlock() {
       '<label>Description of Material <span class="req">*</span> <span class="hint">Copy the wording from the vendor\'s invoice</span></label>' +
       '<textarea id="manual-desc-' + idx + '" rows="2"></textarea>' +
     '</div>' +
-    '<div class="row2">' +
-      '<div class="field">' +
-        '<label>Quantity</label>' +
-        '<input type="text" id="manual-qty-' + idx + '" placeholder="e.g. 100 or 20L">' +
-      '</div>' +
-      '<div class="field">' +
-        '<label>Invoice Amount</label>' +
-        '<input type="text" id="manual-invamt-' + idx + '" placeholder="e.g. 4500.00">' +
-      '</div>' +
+    '<div class="field">' +
+      '<label>Quantity</label>' +
+      '<input type="text" id="manual-qty-' + idx + '" placeholder="e.g. 100 or 20L">' +
     '</div>' +
     // Catalogue / Lot / Batch No. is per-item, not shared across the
     // whole GRN -- one GRN can bundle several different orders, each with
@@ -1098,6 +1106,16 @@ function addManualItemBlock() {
       '<label>Catalogue / Lot / Batch No.</label>' +
       '<input type="text" id="manual-catalogue-' + idx + '">' +
     '</div>' +
+    // Expiry Date is per-item too -- free-text (not <input type="date">)
+    // so a month/year-only expiry can be entered without forcing a
+    // fabricated day-of-month; validated at submit time, exactly as typed.
+    '<div class="field">' +
+      '<label>Expiry Date <span class="hint">DD/MM/YYYY or MM/YYYY</span></label>' +
+      '<input type="text" id="manual-expiry-' + idx + '" placeholder="DD/MM/YYYY or MM/YYYY">' +
+    '</div>' +
+    // Invoice Amount is now ONE field for the whole GRN (see
+    // #f-invoice-amount, added after the item cards) -- no longer entered
+    // per item here.
     // Same shared financial-fields block used by the Selected PO Items and
     // Ad-hoc Item sections (financialFieldsHtml()) — Basic Amount starts
     // blank here (no PO amount to prefill from), Discount/CGST/SGST/IGST
@@ -1136,6 +1154,32 @@ function toDDMMYYYY(isoDate) {
   return dd + '/' + mm + '/' + yyyy;
 }
 
+// Expiry Date is a free-text field per Material Item, not <input
+// type="date"> -- a batch's expiry is sometimes only known to the month
+// (e.g. "09/2028"), and a native date picker can't represent that without
+// fabricating a day. Accepts either a full "DD/MM/YYYY" or a "MM/YYYY",
+// with light range checking (day 1-31, month 1-12) -- not full calendar
+// validation (leap years, 30- vs 31-day months), matching how loosely
+// this form already validates other free-text fields. Blank is valid
+// (expiry is optional). Whatever the user typed is sent exactly as-is if
+// valid -- nothing here reformats or derives a value.
+function isValidExpiryDateInput(raw) {
+  const trimmed = String(raw || '').trim();
+  if (trimmed === '') return true;
+  const full = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (full) {
+    const day = Number(full[1]);
+    const month = Number(full[2]);
+    return day >= 1 && day <= 31 && month >= 1 && month <= 12;
+  }
+  const monthYear = trimmed.match(/^(\d{1,2})\/(\d{4})$/);
+  if (monthYear) {
+    const month = Number(monthYear[1]);
+    return month >= 1 && month <= 12;
+  }
+  return false;
+}
+
 document.getElementById('grnForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   const submitBtn = document.getElementById('submitBtn');
@@ -1160,12 +1204,24 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     // Catalogue/Lot/Batch No. is no longer a GRN-level field either --
     // one GRN can bundle several different orders, each with its own
     // batch/lot number, so this is now read per-item (see the three
-    // itemPayloads-building blocks below) instead of once here.
+    // itemPayloads-building blocks below) instead of once here. Same for
+    // Expiry Date (expDate) -- also read per-item now instead of once
+    // here, for the same reason (different items can have different
+    // batch expiries).
     grnNo: document.getElementById('f-grn-no').value.trim(),
     partyName: document.getElementById('f-party-name').value.trim(),
     receivedBy: document.getElementById('f-received-by').value.trim(),
     issuedTo: document.getElementById('f-issued-to').value.trim(),
-    expDate: toDDMMYYYY(document.getElementById('f-exp-date').value),
+    // Invoice Amount is the opposite direction -- it USED TO be read per
+    // item (from each PO item's own amount, or a per-item manual field)
+    // and is now ONE value for the whole GRN, read once here and left
+    // unmodified on every item payload below (Object.assign keeps it
+    // since none of the three item-building blocks set their own
+    // `invoiceAmount` anymore). The Sheet has no separate GRN-header row
+    // to hold a single value in -- every row IS an item row -- so the
+    // existing schema requires this same value to be written into each
+    // row's own Invoice Amount column, which is exactly what happens here.
+    invoiceAmount: document.getElementById('f-invoice-amount').value.trim(),
     otherCharges: document.getElementById('f-other-charges').value.trim(),
   };
 
@@ -1237,10 +1293,13 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
       return Object.assign({}, baseData, {
         materialDescription: item.description || '',
         quantity: quantity,
-        invoiceAmount: item.amount || '',
-        // Independent per item -- see the comment at baseData above for
-        // why this moved off the GRN-level field.
+        // Independent per item -- see the comments at baseData above for
+        // why these moved off the GRN-level fields. Invoice Amount is
+        // deliberately NOT set here anymore (it used to default to
+        // item.amount) -- baseData.invoiceAmount, the one GRN-level
+        // value, passes through untouched via Object.assign.
         catalogueLotNo: document.getElementById(entry.catalogueLotNoId).value.trim(),
+        expDate: document.getElementById(entry.expiryDateId).value.trim(),
       }, readFinancialFields(financialFieldGroups[entry.financialGroupKey]));
     });
   } else if (!poIsSelected) {
@@ -1252,7 +1311,7 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
         materialDescription: desc,
         quantity: document.getElementById('manual-qty-' + idx).value.trim(),
         catalogueLotNo: document.getElementById('manual-catalogue-' + idx).value.trim(),
-        invoiceAmount: document.getElementById('manual-invamt-' + idx).value.trim(),
+        expDate: document.getElementById('manual-expiry-' + idx).value.trim(),
       }, readFinancialFields(financialFieldGroups['manual-' + idx]));
     });
   }
@@ -1266,8 +1325,20 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
       materialDescription: '[Not on PO] ' + adhocDesc,
       quantity: document.getElementById('f-adhoc-quantity').value.trim(),
       catalogueLotNo: document.getElementById('f-adhoc-catalogue-lot-no').value.trim(),
-      invoiceAmount: '',
+      expDate: document.getElementById('f-adhoc-expiry-date').value.trim(),
     }, readFinancialFields(financialFieldGroups.adhoc)));
+  }
+
+  // Expiry Date accepts DD/MM/YYYY or MM/YYYY (or blank) -- validated
+  // once here across every item about to be submitted, same "block
+  // submission with a clear message" pattern the financial-fields check
+  // above already uses.
+  const invalidExpiryIndex = itemPayloads.findIndex(function(p) { return !isValidExpiryDateInput(p.expDate); });
+  if (invalidExpiryIndex !== -1) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit GRN';
+    showMsg('Item ' + (invalidExpiryIndex + 1) + ': Expiry Date must be DD/MM/YYYY or MM/YYYY (or left blank).', 'error');
+    return;
   }
 
   if (itemPayloads.length === 0) {
