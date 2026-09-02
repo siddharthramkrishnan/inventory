@@ -251,11 +251,11 @@
           <input type="text" id="f-grn-prefix-custom" placeholder="e.g. GR/DD/" style="display:none;margin-top:6px">
         </div>
         <div class="field">
-          <label>GRN No. <span class="req">*</span> <span class="hint">The unique receipt number for this delivery — auto-suggested, double-check before submitting</span></label>
-          <input type="text" id="f-grn-no" required placeholder="Auto-suggested">
+          <label>GRN No. <span class="hint">Assigned automatically on submission — you don't need to enter this</span></label>
+          <input type="text" id="f-grn-no" class="grn-financial-input" value="Automatically generated on submission" disabled readonly>
         </div>
       </div>
-      <button type="button" class="suggest-btn" id="suggestBtn">↻ Re-suggest Sl No. / GRN No. for this category + prefix</button>
+      <button type="button" class="suggest-btn" id="suggestBtn">↻ Re-suggest Sl No. for this category + prefix</button>
     </div>
 
     <div class="card">
@@ -417,10 +417,17 @@ function getSelectedPrefix() {
   return select.style.display !== 'none' ? select.value : customInput.value.trim();
 }
 
-// Re-fetch the suggested Sl No. and GRN No. for the currently selected
-// tab + prefix. Never overwrites a value the person has already typed
-// unless they explicitly click the re-suggest link, or the fields are
-// still empty (e.g. right after selecting a new tab/prefix).
+// Re-fetch the suggested Sl No. for the currently selected tab + prefix.
+// Never overwrites a value the person has already typed unless they
+// explicitly click the re-suggest link, or the field is still empty
+// (e.g. right after selecting a new tab/prefix).
+//
+// GRN No. is no longer suggested/populated here at all -- it's generated
+// server-side now (grnCreate() -> getNextBaseGrnNo(), inside the same
+// LockService lock as Inward Entry No.), exactly like Inward Entry No.
+// already was. The backend's `grnsuggest` action (suggestNextGrnFields())
+// still computes a grnNo suggestion internally for backward compatibility
+// with any other caller, but this page no longer reads or displays it.
 async function refreshSuggestions(force) {
   const tab = document.getElementById('f-tab').value;
   const prefix = getSelectedPrefix();
@@ -428,9 +435,7 @@ async function refreshSuggestions(force) {
   const result = await jsonp('grnsuggest', { tabName: tab, prefix: prefix });
   if (result && result.status === 'success') {
     const slField = document.getElementById('f-sl-no');
-    const grnField = document.getElementById('f-grn-no');
     if (force || !slField.value) slField.value = result.suggestion.slNo || '';
-    if (force || !grnField.value) grnField.value = result.suggestion.grnNo || '';
   }
 }
 
@@ -1201,6 +1206,13 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     // client-supplied value regardless, so there's nothing meaningful to
     // send. The field above is a disabled, display-only placeholder.
     //
+    // GRN No. is the same now -- also generated server-side
+    // (grnCreate() -> getNextBaseGrnNo(), inside the same lock), so it's
+    // no longer sent either. Only the PREFIX (e.g. "GR/DD/") is still
+    // chosen by the person and sent -- the backend combines it with the
+    // next available number for that prefix.
+    grnPrefix: getSelectedPrefix(),
+    //
     // Catalogue/Lot/Batch No. is no longer a GRN-level field either --
     // one GRN can bundle several different orders, each with its own
     // batch/lot number, so this is now read per-item (see the three
@@ -1208,7 +1220,6 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     // Expiry Date (expDate) -- also read per-item now instead of once
     // here, for the same reason (different items can have different
     // batch expiries).
-    grnNo: document.getElementById('f-grn-no').value.trim(),
     partyName: document.getElementById('f-party-name').value.trim(),
     receivedBy: document.getElementById('f-received-by').value.trim(),
     issuedTo: document.getElementById('f-issued-to').value.trim(),
@@ -1374,8 +1385,13 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
           ? ' (Inward Entry No. ' + result.baseInwardEntryNo + ', items ' + result.baseInwardEntryNo + '_1–' + result.baseInwardEntryNo + '_' + itemPayloads.length + ')'
           : ' (Inward Entry No. ' + result.baseInwardEntryNo + ')')
       : '';
+    // result.grnNo is now the BASE GRN No. (e.g. "GR/DD/112"), server-
+    // assigned exactly like result.baseInwardEntryNo -- for a multi-item
+    // submission the individual rows are grnNo_1/grnNo_2/... (never shown
+    // to the user individually here, same treatment as Inward Entry No.
+    // above).
     let msg = itemPayloads.length > 1
-      ? '✅ ' + itemPayloads.length + ' items logged under GRN ' + result.grnNo + ' in "' + result.tabName + '"' + inwardNosText + '.'
+      ? '✅ ' + itemPayloads.length + ' items logged under GRN ' + result.grnNo + ' (' + result.grnNo + '_1–' + result.grnNo + '_' + itemPayloads.length + ') in "' + result.tabName + '"' + inwardNosText + '.'
       : '✅ GRN ' + result.grnNo + ' logged in "' + result.tabName + '"' + inwardNosText + '.';
     const skipped = result.skippedFields || [];
     if (skipped.length) {
