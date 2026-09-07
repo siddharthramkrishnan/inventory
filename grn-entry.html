@@ -283,6 +283,44 @@
           <input type="text" id="f-other-charges">
         </div>
       </div>
+
+      <div class="field">
+        <label>Tax Application <span class="hint">How tax is written on this vendor invoice</span></label>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer">
+            <input type="radio" name="tax-application" id="f-tax-app-peritem" value="Per Item" checked> Tax per item
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer">
+            <input type="radio" name="tax-application" id="f-tax-app-overall" value="Overall"> Overall tax for this GRN
+          </label>
+        </div>
+        <div id="taxAppPerItemHint" class="hint-box" style="margin-top:6px">
+          Each item card above has its own GST/CGST/SGST/IGST fields — leave any item's tax blank if the vendor didn't charge tax on it.
+        </div>
+        <div id="overallTaxSection" style="display:none;margin-top:6px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#f8f9f7">
+          <div class="hint-box" style="margin-bottom:8px">
+            Applies once to the whole delivery, computed against the combined Basic Amount − Discount of every item above — each item's own GST/CGST/SGST/IGST fields are hidden and not used while this is selected.
+          </div>
+          <label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px">Tax Type</label>
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="overall-gst-check"> GST
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="overall-cgst-check"> CGST
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="overall-sgst-check"> SGST
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="overall-igst-check"> IGST
+            </label>
+          </div>
+          <div id="overallTaxFields" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"></div>
+          <div id="overallTaxSummary" style="margin-top:8px;font-size:12.5px;color:var(--muted)"></div>
+          <div id="overallTaxError" style="font-size:11.5px;color:var(--red);margin-top:3px;display:none"></div>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -538,6 +576,15 @@ function financialFieldsHtml(ids, basicValue) {
     // and IGST are exclusive with everything, including each other; CGST
     // and SGST may be checked together — matching the backend's existing
     // mutual-exclusivity rule exactly, see computeFinancialValues()).
+    //
+    // The Tax Type checkboxes + their four rate inputs are wrapped in one
+    // container (id = ids.taxSection) so recalcFinancialFields() can hide
+    // this whole block in one step whenever the GRN-level "Tax
+    // Application" selector is set to "Overall tax for this GRN" — item
+    // tax stays OPTIONAL either way (no checkbox is required to be
+    // checked), this only controls whether item-level tax entry is
+    // offered at all for this GRN.
+    '<div id="' + ids.taxSection + '">' +
     '<div style="margin-top:6px">' +
       '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px">Tax Type</label>' +
       '<div style="display:flex;gap:14px;flex-wrap:wrap">' +
@@ -560,6 +607,7 @@ function financialFieldsHtml(ids, basicValue) {
       taxFieldHtml(ids, 'cgst', 'CGST') +
       taxFieldHtml(ids, 'sgst', 'SGST') +
       taxFieldHtml(ids, 'igst', 'IGST') +
+    '</div>' +
     '</div>' +
     '<div style="margin-top:6px">' +
       '<label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px">Total Amount</label>' +
@@ -729,6 +777,15 @@ function computeFinancialValues(ids) {
 // only the four GST-family value inputs and, per the rule above, whichever
 // checkboxes are currently blocked — so a person can always freely change
 // their tax type selection.
+// GRN-level "Tax Application" selector (see the radio buttons added near
+// #f-invoice-amount) — 'Per Item' (default) or 'Overall'. A missing/absent
+// radio group defensively falls back to 'Per Item', matching the backend's
+// own default-to-'Per Item' behavior in grnCreate().
+function getTaxApplicationMode() {
+  const overallRadio = document.getElementById('f-tax-app-overall');
+  return (overallRadio && overallRadio.checked) ? 'Overall' : 'Per Item';
+}
+
 function recalcFinancialFields(ids) {
   if (!ids) return;
   const gstEl = document.getElementById(ids.gst);
@@ -772,6 +829,18 @@ function recalcFinancialFields(ids) {
   }
 
   totalEl.value = result.error ? '' : result.totalAmount.toFixed(2);
+
+  // Hide the whole per-item Tax Type block (checkboxes + rate inputs)
+  // whenever the GRN-level "Tax Application" selector is set to "Overall
+  // tax for this GRN" — the Overall Tax section below takes over instead.
+  // Re-applied on every recalc (including the mode-switch handler's
+  // forced zeroing pass below), so it never drifts out of sync with the
+  // current selection, no matter which of the three item sections this
+  // group belongs to.
+  if (ids.taxSection) {
+    const taxSectionEl = document.getElementById(ids.taxSection);
+    if (taxSectionEl) taxSectionEl.style.display = (getTaxApplicationMode() === 'Overall') ? 'none' : '';
+  }
 }
 
 // Reads one financial-field group's current values into the shape
@@ -813,6 +882,235 @@ document.getElementById('grnForm').addEventListener('change', function(e) {
   if (!e.target.classList) return;
   if (!e.target.classList.contains('grn-financial-mode') && !e.target.classList.contains('grn-tax-check')) return;
   recalcFinancialFields(financialFieldGroups[e.target.getAttribute('data-group')]);
+});
+
+// ============================================================
+// Overall Tax ("Tax Application" = Overall) — a single GST/CGST/SGST/IGST
+// entry for the WHOLE GRN instead of one per item. Deliberately kept as
+// its own small set of functions/ids rather than shoehorned into
+// financialFieldGroups/computeFinancialValues/recalcFinancialFields above
+// — those are keyed to one item's own Basic Amount/Discount, whereas the
+// Overall Tax base is the SUM of every currently-active item's taxable
+// amount, a fundamentally different "base" to resolve percentages
+// against. Reuses taxFieldHtml()/parseFinancialInput()/
+// resolveFinancialAmount() as-is (those are already generic), so the
+// %/₹ input convention and validation rules stay identical to the
+// per-item fields.
+// ============================================================
+
+const overallTaxIds = {
+  group: 'overall-tax',
+  gst: 'overall-gst', gstMode: 'overall-gst-mode',
+  cgst: 'overall-cgst', cgstMode: 'overall-cgst-mode',
+  sgst: 'overall-sgst', sgstMode: 'overall-sgst-mode',
+  igst: 'overall-igst', igstMode: 'overall-igst-mode',
+};
+document.getElementById('overallTaxFields').innerHTML =
+  taxFieldHtml(overallTaxIds, 'gst', 'GST') +
+  taxFieldHtml(overallTaxIds, 'cgst', 'CGST') +
+  taxFieldHtml(overallTaxIds, 'sgst', 'SGST') +
+  taxFieldHtml(overallTaxIds, 'igst', 'IGST');
+
+// Which item-entry groups will actually be submitted right now — checked
+// PO items, OR manual items with a description, OR the ad-hoc item if
+// active. Mirrors the submit handler's own groupsToValidate logic exactly
+// (kept as a separate, duplicated function rather than a shared one so
+// this live-preview code can never accidentally change what the submit
+// handler itself does) — used here only to sum up the taxable base for
+// the Overall Tax summary/validation below.
+function getActiveGroupKeysForOverallTax() {
+  const checkedItems = Array.from(document.querySelectorAll('.po-item-checkbox:checked'));
+  const poIsSelected = document.getElementById('f-po-select').value !== '';
+  const keys = checkedItems.map(function(cb) { return cb.id; });
+  if (checkedItems.length === 0 && !poIsSelected) {
+    Array.from(document.querySelectorAll('.manual-item-block')).forEach(function(block) {
+      const descEl = block.querySelector('textarea[id^="manual-desc-"]');
+      if (descEl && descEl.value.trim()) {
+        keys.push('manual-' + descEl.id.replace('manual-desc-', ''));
+      }
+    });
+  }
+  const adhocToggle = document.getElementById('f-adhoc-toggle');
+  const adhocDesc = document.getElementById('f-adhoc-description');
+  if (adhocToggle && adhocToggle.checked && adhocDesc && adhocDesc.value.trim()) keys.push('adhoc');
+  return keys;
+}
+
+// Same parse/resolve/mutual-exclusivity shape as computeFinancialValues()
+// above, but keyed to the Overall Tax section's own fixed ids and an
+// externally-supplied taxable base (the sum of every active item's own
+// Basic Amount − Discount) instead of a per-item Basic Amount/Discount
+// pair — Overall Tax never has its own Basic Amount/Discount, only a tax
+// rate/amount on top of the items' own combined taxable amount.
+function computeOverallTaxValues(taxableBase) {
+  const gstEl = document.getElementById(overallTaxIds.gst);
+  const gstModeEl = document.getElementById(overallTaxIds.gstMode);
+  const cgstEl = document.getElementById(overallTaxIds.cgst);
+  const cgstModeEl = document.getElementById(overallTaxIds.cgstMode);
+  const sgstEl = document.getElementById(overallTaxIds.sgst);
+  const sgstModeEl = document.getElementById(overallTaxIds.sgstMode);
+  const igstEl = document.getElementById(overallTaxIds.igst);
+  const igstModeEl = document.getElementById(overallTaxIds.igstMode);
+  const gstCheckEl = document.getElementById('overall-gst-check');
+  const cgstCheckEl = document.getElementById('overall-cgst-check');
+  const sgstCheckEl = document.getElementById('overall-sgst-check');
+  const igstCheckEl = document.getElementById('overall-igst-check');
+  if (!gstEl || !cgstEl || !sgstEl || !igstEl) return null;
+
+  let error = null;
+  const gstParsed = parseFinancialInput(financialRawValue(gstEl, gstModeEl), 'Overall GST');
+  if (!error && gstParsed.error) error = gstParsed.error;
+  const cgstParsed = parseFinancialInput(financialRawValue(cgstEl, cgstModeEl), 'Overall CGST');
+  if (!error && cgstParsed.error) error = cgstParsed.error;
+  const sgstParsed = parseFinancialInput(financialRawValue(sgstEl, sgstModeEl), 'Overall SGST');
+  if (!error && sgstParsed.error) error = sgstParsed.error;
+  const igstParsed = parseFinancialInput(financialRawValue(igstEl, igstModeEl), 'Overall IGST');
+  if (!error && igstParsed.error) error = igstParsed.error;
+
+  const gstAmount = resolveFinancialAmount(gstParsed, taxableBase);
+  const cgstAmount = resolveFinancialAmount(cgstParsed, taxableBase);
+  const sgstAmount = resolveFinancialAmount(sgstParsed, taxableBase);
+  const igstAmount = resolveFinancialAmount(igstParsed, taxableBase);
+
+  // "Used" is driven by the Tax Type checkboxes, exactly like the
+  // per-item fields (computeFinancialValues() above) — not amount > 0 —
+  // so a component can be selected before a rate is typed.
+  const gstUsed = !!(gstCheckEl && gstCheckEl.checked);
+  const cgstUsed = !!(cgstCheckEl && cgstCheckEl.checked);
+  const sgstUsed = !!(sgstCheckEl && sgstCheckEl.checked);
+  const igstUsed = !!(igstCheckEl && igstCheckEl.checked);
+  const cgstOrSgstUsed = cgstUsed || sgstUsed;
+  const taxModesUsed = (gstUsed ? 1 : 0) + (cgstOrSgstUsed ? 1 : 0) + (igstUsed ? 1 : 0);
+  if (!error && taxModesUsed > 1) error = 'Use either Overall GST, Overall CGST + SGST, or Overall IGST — not more than one.';
+
+  const totalTax = (gstUsed ? gstAmount : 0) + (cgstUsed ? cgstAmount : 0) + (sgstUsed ? sgstAmount : 0) + (igstUsed ? igstAmount : 0);
+  const finalAmount = Math.max(taxableBase + totalTax, 0);
+
+  return {
+    error: error, taxableBase: taxableBase, totalTax: totalTax, finalAmount: finalAmount,
+    gstUsed: gstUsed, cgstUsed: cgstUsed, sgstUsed: sgstUsed, igstUsed: igstUsed,
+  };
+}
+
+// Recomputes the Overall Tax live summary/validation — the taxable base
+// (sum of every currently active item's own Basic Amount − Discount, via
+// computeFinancialValues() on each of getActiveGroupKeysForOverallTax()'s
+// groups), the Tax Type checkbox enable/disable + value zero-when-
+// unchecked behavior (same pattern as recalcFinancialFields()), and a
+// plain-language summary line. Purely a live preview for the person
+// filling the form — the authoritative validation/calculation happens
+// again, independently, on submit (below) and again on the server
+// (validateGrnOverallTaxFields() in the backend), never trusted from here
+// alone.
+function recalcOverallTaxSummary() {
+  const summaryEl = document.getElementById('overallTaxSummary');
+  const errorEl = document.getElementById('overallTaxError');
+  const gstEl = document.getElementById(overallTaxIds.gst);
+  const cgstEl = document.getElementById(overallTaxIds.cgst);
+  const sgstEl = document.getElementById(overallTaxIds.sgst);
+  const igstEl = document.getElementById(overallTaxIds.igst);
+  const gstCheckEl = document.getElementById('overall-gst-check');
+  const cgstCheckEl = document.getElementById('overall-cgst-check');
+  const sgstCheckEl = document.getElementById('overall-sgst-check');
+  const igstCheckEl = document.getElementById('overall-igst-check');
+  if (!summaryEl || !gstEl || !cgstEl || !sgstEl || !igstEl) return;
+
+  let taxableBase = 0;
+  let itemsError = null;
+  getActiveGroupKeysForOverallTax().forEach(function(key) {
+    const ids = financialFieldGroups[key];
+    if (!ids) return;
+    const result = computeFinancialValues(ids);
+    if (!result) return;
+    if (result.error && !itemsError) itemsError = 'Fix the highlighted item amount field(s) above first.';
+    taxableBase += result.taxableAmount || 0;
+  });
+
+  const result = computeOverallTaxValues(taxableBase);
+
+  gstEl.disabled = !(result && result.gstUsed);
+  cgstEl.disabled = !(result && result.cgstUsed);
+  sgstEl.disabled = !(result && result.sgstUsed);
+  igstEl.disabled = !(result && result.igstUsed);
+  if (!result || !result.gstUsed) gstEl.value = '0';
+  if (!result || !result.cgstUsed) cgstEl.value = '0';
+  if (!result || !result.sgstUsed) sgstEl.value = '0';
+  if (!result || !result.igstUsed) igstEl.value = '0';
+
+  if (gstCheckEl) gstCheckEl.disabled = !!(result && (result.cgstUsed || result.sgstUsed || result.igstUsed));
+  if (igstCheckEl) igstCheckEl.disabled = !!(result && (result.gstUsed || result.cgstUsed || result.sgstUsed));
+  if (cgstCheckEl) cgstCheckEl.disabled = !!(result && (result.gstUsed || result.igstUsed));
+  if (sgstCheckEl) sgstCheckEl.disabled = !!(result && (result.gstUsed || result.igstUsed));
+
+  const error = itemsError || (result && result.error) || null;
+  if (errorEl) {
+    errorEl.style.display = error ? 'block' : 'none';
+    errorEl.textContent = error || '';
+  }
+
+  if (error || !result) {
+    summaryEl.textContent = '';
+    return;
+  }
+  summaryEl.textContent =
+    'Taxable Amount (all items): ₹' + taxableBase.toFixed(2) +
+    '   +   Tax: ₹' + result.totalTax.toFixed(2) +
+    '   =   Final Amount: ₹' + result.finalAmount.toFixed(2);
+}
+
+// Overall Tax section's own inputs use the same taxFieldHtml() markup
+// (classes grn-financial-input/grn-financial-mode, data-group=
+// "overall-tax") as every per-item field, but "overall-tax" is never
+// registered in financialFieldGroups — so the two delegated listeners
+// just above safely no-op for it (recalcFinancialFields(undefined)
+// returns immediately). These two listeners are the actual handlers for
+// the Overall Tax section's own fields, plus the four Tax Type
+// checkboxes (which don't share the per-item grn-tax-check class,
+// precisely so they can never be swept up by the per-item mutual-
+// exclusivity logic above).
+document.getElementById('overallTaxFields').addEventListener('input', recalcOverallTaxSummary);
+document.getElementById('overallTaxFields').addEventListener('change', recalcOverallTaxSummary);
+['overall-gst-check', 'overall-cgst-check', 'overall-sgst-check', 'overall-igst-check'].forEach(function(id) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', recalcOverallTaxSummary);
+});
+
+// Any change anywhere in the form can affect the Overall Tax taxable
+// base (an item's Basic Amount/Discount, a PO item being checked/
+// unchecked, a manual item being typed into, etc.) — cheapest correct
+// approach is to just refresh the live summary on every form input/change
+// rather than trying to enumerate every specific trigger. No-ops quickly
+// if the Overall Tax section isn't relevant/visible.
+document.getElementById('grnForm').addEventListener('input', recalcOverallTaxSummary);
+document.getElementById('grnForm').addEventListener('change', recalcOverallTaxSummary);
+
+// Tax Application mode switch — shows/hides the Overall Tax section and
+// every item's own Tax Type block (via recalcFinancialFields()'s own
+// ids.taxSection handling), and — only when switching TO Overall — zeroes
+// every currently-rendered item's own tax checkboxes/values so a value
+// entered while in Per Item mode can never survive, hidden, into an
+// Overall Tax submission (the server independently rejects this too, see
+// grnCreate()'s double-taxation guard, but doing it here avoids ever
+// showing that error for a field the person can no longer see).
+function applyTaxApplicationMode() {
+  const overall = getTaxApplicationMode() === 'Overall';
+  document.getElementById('overallTaxSection').style.display = overall ? 'block' : 'none';
+  document.getElementById('taxAppPerItemHint').style.display = overall ? 'none' : '';
+  Object.keys(financialFieldGroups).forEach(function(key) {
+    recalcFinancialFields(financialFieldGroups[key]);
+  });
+  recalcOverallTaxSummary();
+}
+document.getElementById('f-tax-app-peritem').addEventListener('change', applyTaxApplicationMode);
+document.getElementById('f-tax-app-overall').addEventListener('change', function() {
+  Object.keys(financialFieldGroups).forEach(function(key) {
+    const ids = financialFieldGroups[key];
+    ['gstCheck', 'cgstCheck', 'sgstCheck', 'igstCheck'].forEach(function(k) {
+      const el = ids[k] && document.getElementById(ids[k]);
+      if (el) el.checked = false;
+    });
+  });
+  applyTaxApplicationMode();
 });
 
 async function loadActivePOs() {
@@ -910,6 +1208,7 @@ document.getElementById('f-po-select').addEventListener('change', function() {
       cgstCheck: 'po-item-cgst-check-' + i,
       sgstCheck: 'po-item-sgst-check-' + i,
       igstCheck: 'po-item-igst-check-' + i,
+      taxSection: 'po-item-taxsection-' + i,
       total: 'po-item-total-' + i,
       error: 'po-item-error-' + i,
     };
@@ -1047,6 +1346,7 @@ const adhocFinancialIds = {
   igst: 'f-adhoc-igst', igstMode: 'f-adhoc-igst-mode',
   gstCheck: 'f-adhoc-gst-check', cgstCheck: 'f-adhoc-cgst-check',
   sgstCheck: 'f-adhoc-sgst-check', igstCheck: 'f-adhoc-igst-check',
+  taxSection: 'f-adhoc-taxsection',
   total: 'f-adhoc-total', error: 'f-adhoc-error',
 };
 financialFieldGroups.adhoc = adhocFinancialIds;
@@ -1083,6 +1383,7 @@ function addManualItemBlock() {
     cgstCheck: 'manual-cgst-check-' + idx,
     sgstCheck: 'manual-sgst-check-' + idx,
     igstCheck: 'manual-igst-check-' + idx,
+    taxSection: 'manual-taxsection-' + idx,
     total: 'manual-total-' + idx,
     error: 'manual-error-' + idx,
   };
@@ -1236,6 +1537,28 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     otherCharges: document.getElementById('f-other-charges').value.trim(),
   };
 
+  // "Tax Application" — same GRN-level treatment as Invoice Amount/Other
+  // Charges just above: read once here, unmodified on every item payload
+  // via Object.assign below. When mode is "Per Item" (the default), the
+  // Overall Tax fields are sent blank regardless of whatever the (hidden)
+  // Overall Tax section's inputs currently hold — mirrors the backend's
+  // own "ignore overall* fields unless taxApplication === 'Overall'"
+  // guard, so a stale Overall Tax value can never leak into a Per Item
+  // submission from either side.
+  const taxApplicationMode = getTaxApplicationMode();
+  baseData.taxApplication = taxApplicationMode;
+  if (taxApplicationMode === 'Overall') {
+    baseData.overallGst = financialRawValue(document.getElementById(overallTaxIds.gst), document.getElementById(overallTaxIds.gstMode));
+    baseData.overallCgst = financialRawValue(document.getElementById(overallTaxIds.cgst), document.getElementById(overallTaxIds.cgstMode));
+    baseData.overallSgst = financialRawValue(document.getElementById(overallTaxIds.sgst), document.getElementById(overallTaxIds.sgstMode));
+    baseData.overallIgst = financialRawValue(document.getElementById(overallTaxIds.igst), document.getElementById(overallTaxIds.igstMode));
+  } else {
+    baseData.overallGst = '';
+    baseData.overallCgst = '';
+    baseData.overallSgst = '';
+    baseData.overallIgst = '';
+  }
+
   // FIX: one GRN No. can legitimately cover MULTIPLE items in a single
   // delivery (confirmed against a real vendor invoice with 3 line items
   // under one GRN No.). If items were checked from a linked PO, submit
@@ -1292,6 +1615,25 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     submitBtn.textContent = 'Submit GRN';
     showMsg('Please fix the highlighted Basic Amount / Discount / GST / CGST / SGST / IGST value(s) before submitting.', 'error');
     return;
+  }
+
+  if (taxApplicationMode === 'Overall') {
+    recalcOverallTaxSummary();
+    const overallErrorEl = document.getElementById('overallTaxError');
+    if (overallErrorEl && overallErrorEl.style.display !== 'none' && overallErrorEl.textContent) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit GRN';
+      showMsg('Please fix the highlighted Overall Tax value(s) before submitting.', 'error');
+      return;
+    }
+    // Re-read the Overall Tax fields now that recalcOverallTaxSummary()
+    // has zeroed whichever ones aren't checked — same "re-read after
+    // recalc" pattern the per-item fields already rely on via
+    // readFinancialFields() below.
+    baseData.overallGst = financialRawValue(document.getElementById(overallTaxIds.gst), document.getElementById(overallTaxIds.gstMode));
+    baseData.overallCgst = financialRawValue(document.getElementById(overallTaxIds.cgst), document.getElementById(overallTaxIds.cgstMode));
+    baseData.overallSgst = financialRawValue(document.getElementById(overallTaxIds.sgst), document.getElementById(overallTaxIds.sgstMode));
+    baseData.overallIgst = financialRawValue(document.getElementById(overallTaxIds.igst), document.getElementById(overallTaxIds.igstMode));
   }
 
   let itemPayloads = [];
