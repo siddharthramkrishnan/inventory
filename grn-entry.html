@@ -1489,7 +1489,22 @@ function isValidExpiryDateInput(raw) {
 document.getElementById('grnForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   const submitBtn = document.getElementById('submitBtn');
+  // Duplicate-submission guard: a submission already in flight leaves
+  // submitBtn.disabled === true for its entire duration (see every path
+  // below — a validation failure or a failed request resets it so the
+  // user can retry; a SUCCESSFUL submission deliberately leaves it
+  // disabled, see the success branch further down) — reusing that SAME
+  // flag as the re-entrancy check here means a second click, a
+  // double-click, or a second Enter-triggered submit event that slips in
+  // while one is already running (or after a successful one) is simply
+  // ignored, with no second submission mechanism introduced.
+  if (submitBtn.disabled) return;
   submitBtn.disabled = true;
+  // Immediate feedback on the very first click, before the (synchronous)
+  // validation work below even runs — replaced with a more specific
+  // "Submitting N items…" a few lines down once the item count is known,
+  // exactly like the existing message did already.
+  submitBtn.textContent = 'Submitting GRN...';
   showMsg('', '');
   document.getElementById('msg').className = 'msg';
 
@@ -1714,9 +1729,6 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   // first item only.
   const result = await jsonp('grncreate', { data: JSON.stringify({ items: itemPayloads }) });
 
-  submitBtn.disabled = false;
-  submitBtn.textContent = 'Submit GRN';
-
   if (result && result.status === 'success') {
     // ONE base Inward Entry No. per submission -- bare (e.g. "6458") for
     // a single item, or suffixed per item (e.g. "6459_1", "6459_2") for a
@@ -1746,11 +1758,20 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     document.getElementById('manualItemsContainer').innerHTML = '';
     addManualItemBlock(); // back to a single fresh block, matching the initial page state
     refreshSuggestions(true);
+    // Submit GRN stays disabled ("Submitting GRN...") for this completed
+    // form -- deliberately NOT re-enabled here (form.reset() above resets
+    // field VALUES only; it never touches a control's disabled property or
+    // a button's textContent, so this state persists as intended). A new
+    // GRN requires a fresh page load, by design.
   } else {
     // The whole submission is now all-or-nothing (validated and written
     // as one batch) -- so there is no longer a "some items saved, some
     // failed" partial state to report; a failure here means nothing in
-    // this submission was written.
+    // this submission was written. Re-enable so the user can fix the
+    // problem and retry -- unlike the success branch above, a failed
+    // submission must not leave the button permanently disabled.
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit GRN';
     showMsg('❌ ' + ((result && result.message) || 'Something went wrong — please check the sheet directly before retrying.'), 'error');
   }
 });
