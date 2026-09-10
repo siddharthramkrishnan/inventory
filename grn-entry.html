@@ -1785,11 +1785,14 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     document.getElementById('manualItemsContainer').innerHTML = '';
     addManualItemBlock(); // back to a single fresh block, matching the initial page state
     refreshSuggestions(true);
-    // Submit GRN stays disabled ("Submitting GRN...") for this completed
-    // form -- deliberately NOT re-enabled here (form.reset() above resets
-    // field VALUES only; it never touches a control's disabled property or
-    // a button's textContent, so this state persists as intended). A new
-    // GRN requires a fresh page load, by design.
+    // Submit GRN stays disabled for this completed form -- deliberately
+    // NOT re-enabled here (form.reset() above resets field VALUES only;
+    // it never touches a control's disabled property, so this state
+    // persists as intended). A new GRN requires a fresh page load, by
+    // design. Text is updated from "Submitting GRN..."/"Submitting N
+    // items…" to a distinct final confirmation state so it's visibly
+    // different from "still in progress" rather than looking stuck.
+    submitBtn.textContent = '✓ GRN Submitted';
   } else {
     // The whole submission is now all-or-nothing (validated and written
     // as one batch) -- so there is no longer a "some items saved, some
