@@ -149,13 +149,51 @@
 
   .effect-tag.add{ color:var(--green); font-weight:700; }
   .effect-tag.reduce{ color:var(--red); font-weight:700; }
+
+  /* Custom tooltip — one shared element for the whole dashboard, shown
+     for every [data-tooltip] cell (Department/Subcategory codes),
+     replacing the native title="" tooltip. position:fixed + JS-set
+     top/left so it's positioned per-hover without affecting document
+     flow (no layout shift). opacity+pointer-events (not display) so it
+     stays measurable via offsetWidth/offsetHeight while hidden, and so
+     it never intercepts the mouseout that would otherwise hide it. */
+  .custom-tooltip{
+    position:fixed;
+    top:0; left:0;
+    z-index:9999;
+    background:#1f2937;
+    color:#ffffff;
+    font-size:12px;
+    font-weight:600;
+    line-height:1.3;
+    padding:6px 10px;
+    border-radius:7px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.28);
+    white-space:nowrap;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 180ms ease;
+  }
+  .custom-tooltip.show{ opacity:1; }
+  .custom-tooltip::after{
+    content:'';
+    position:absolute;
+    left:var(--arrow-left, 50%);
+    transform:translateX(-50%);
+    border:6px solid transparent;
+  }
+  /* default/preferred position: above the hovered code, arrow pointing down */
+  .custom-tooltip.pos-above::after{ top:100%; border-top-color:#1f2937; }
+  /* fallback when there isn't room above (e.g. near the top of the
+     viewport) — flips below instead of overflowing off-screen */
+  .custom-tooltip.pos-below::after{ bottom:100%; border-bottom-color:#1f2937; }
 </style>
 </head>
 <body>
 <header>
   <a href="home.html" class="home-nav-link">← Home</a>
   <h1>📊 Inventory Dashboard</h1>
-  <p>Achira Labs · Live view of Master Item List &amp; Adjustment Log</p>
+  <p>Achira Labs · Live view of Tally Stock &amp; Adjustment Log</p>
 </header>
 
 <div class="wrap">
@@ -215,7 +253,7 @@
         <div class="collapsible-panel" id="outOfStockPanel">
           <div style="overflow-x:auto">
             <table class="simple">
-              <thead><tr><th>ARN</th><th>Item</th><th>Dept</th><th>Qty</th></tr></thead>
+              <thead><tr><th>MASTERID</th><th>Item</th><th>Unit</th><th>Qty</th></tr></thead>
               <tbody id="outOfStockBody"></tbody>
             </table>
           </div>
@@ -229,6 +267,17 @@
         <table class="simple">
           <thead><tr><th>Adj ID</th><th>Date</th><th>ARN</th><th>Item</th><th>Dept</th><th>Type</th><th>Qty</th><th>Effect</th></tr></thead>
           <tbody id="recentBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="section-title">Recent Inward (Tally Receipts, latest 10)</p>
+      <p style="font-size:11.5px;color:var(--muted);margin:0 0 8px">Goods received, sourced directly from Tally "Receipt Note" vouchers — inward only, separate from Recent Adjustments above.</p>
+      <div style="overflow-x:auto">
+        <table class="simple">
+          <thead><tr><th>Date</th><th>Voucher No.</th><th>Item</th><th>Qty</th><th>Unit</th><th>Party</th></tr></thead>
+          <tbody id="recentInwardBody"></tbody>
         </table>
       </div>
     </div>
@@ -268,6 +317,11 @@
 
   </div>
 </div>
+
+<!-- One shared tooltip element for the entire dashboard — every
+     [data-tooltip] cell reuses this same node instead of each having
+     its own. -->
+<div class="custom-tooltip" id="customTooltip" role="tooltip"></div>
 
 <script>
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec';
@@ -312,6 +366,189 @@ function fmtNum(n) {
   return (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-IN');
 }
 
+// Official Achira Category Reference. Department codes are global.
+// Subcategory codes are scoped PER DEPARTMENT — the same code can mean
+// something different under a different department (e.g. a future
+// addition could reuse "FL" for something other than RD's "Fluorophores
+// & Bioconjugates"), so this is intentionally never a single flat map
+// keyed by subcategory code alone. Hover tooltips only — every table
+// still displays just the short code.
+const DEPARTMENT_NAMES = {
+  RD: 'Research & Development',
+  MF: 'Manufacturing',
+  EN: 'Engineering',
+  GN: 'General',
+  CI: 'Common Inventory',
+};
+
+const SUBCATEGORY_NAMES = {
+  RD: {
+    AB: 'Antibodies',
+    BG: 'Biologicals',
+    CH: 'Chemicals / Chemistry',
+    CM: 'Consumables',
+    FL: 'Fluorophores & Bioconjugates',
+    KT: 'Kits, Controls & Panels',
+  },
+  MF: {
+    CM: 'Consumables',
+    CT: 'Cartridge (Parts)',
+    JG: 'Jigs & Fixtures',
+    LB: 'Labels & Stickers',
+    PM: 'Packing Material',
+    RM: 'Raw Material',
+  },
+  EN: {
+    EL: 'Electronics',
+    EQ: 'Equipment',
+    ME: 'Mechanical',
+    OP: 'Optical',
+    SP: 'Software / Services',
+  },
+  GN: {
+    FA: 'Facilities',
+    HK: 'Housekeeping / Canteen',
+    IT: 'IT',
+    OF: 'Office Supplies',
+    SF: 'Safety / PPE',
+  },
+  CI: {
+    CM: 'Consumables',
+    CT: 'Cartridge (Parts)',
+    LB: 'Labels & Stickers',
+    PM: 'Packing Material',
+  },
+};
+
+// A department not present in DEPARTMENT_NAMES is left unchanged with
+// no tooltip. Emits data-tooltip="" (not title=) — read by the custom
+// tooltip component below instead of the native browser tooltip.
+function departmentTooltip(deptCode) {
+  const full = DEPARTMENT_NAMES[deptCode];
+  return full ? ' data-tooltip="' + escapeHtml(full) + '"' : '';
+}
+
+// Looks up a subcategory's meaning as DEPARTMENT_NAMES[dept][subcat] —
+// the department+subcategory combination, per spec, never a flat
+// subcategory-only lookup. If no department is available for this
+// particular cell (the Inventory by Subcategory table aggregates
+// across every department, since the existing, unmodified backend
+// groups subcategories globally — see getInventoryDashboardSummary()'s
+// subMap), falls back to unambiguousSubcatName() rather than guessing
+// which department's meaning applies.
+function subcategoryTooltip(deptCode, subcatCode) {
+  let full;
+  if (deptCode) {
+    // Department is known — this must be an exact department+subcategory
+    // match or nothing at all. Never fall back to another department's
+    // meaning for a combination that genuinely doesn't exist (e.g.
+    // MF+FL, per spec, is not the same thing as RD+FL).
+    full = SUBCATEGORY_NAMES[deptCode] ? SUBCATEGORY_NAMES[deptCode][subcatCode] : undefined;
+  } else {
+    // No department context at all for this cell — fall back to the
+    // cross-department name only if every department using this code
+    // agrees on its meaning.
+    full = unambiguousSubcatName(subcatCode);
+  }
+  return full ? ' data-tooltip="' + escapeHtml(full) + '"' : '';
+}
+
+// Derived at runtime from SUBCATEGORY_NAMES itself (not a second,
+// separately-authored flat map) — returns the shared name only if
+// every department that uses this code agrees on its meaning, or null
+// if the code is genuinely ambiguous across departments, in which case
+// no tooltip is shown rather than guessing.
+function unambiguousSubcatName(subcatCode) {
+  let name = null;
+  for (const dept in SUBCATEGORY_NAMES) {
+    const n = SUBCATEGORY_NAMES[dept][subcatCode];
+    if (n === undefined) continue;
+    if (name === null) name = n;
+    else if (name !== n) return null;
+  }
+  return name;
+}
+
+// ── Custom tooltip controller ───────────────────────────────────────
+// One shared <div id="customTooltip"> (declared once in the HTML,
+// outside any table) serves every [data-tooltip] cell on the page —
+// nothing here creates a new tooltip element per cell. Listeners are
+// delegated onto document.body rather than attached to individual
+// cells, because every render*() function above replaces its
+// <tbody>'s innerHTML on each dashboard load/refresh; a listener
+// attached directly to a <td> would be destroyed the next time that
+// table re-renders and silently stop working.
+const tooltipEl = document.getElementById('customTooltip');
+let tooltipTarget = null;
+
+function positionTooltip(target) {
+  const rect = target.getBoundingClientRect();
+  const gap = 8;    // space between the hovered cell and the tooltip/arrow
+  const margin = 8; // minimum distance kept from the viewport edges
+  const tw = tooltipEl.offsetWidth;
+  const th = tooltipEl.offsetHeight;
+
+  const targetCenterX = rect.left + rect.width / 2;
+  let left = targetCenterX - tw / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - tw - margin));
+
+  let top, posClass;
+  if (rect.top - th - gap >= margin) {
+    // preferred position, per spec: above the hovered item
+    top = rect.top - th - gap;
+    posClass = 'pos-above';
+  } else {
+    // not enough room above (e.g. hovering a row near the top of the
+    // viewport) — flip below instead of letting it overflow off-screen
+    top = rect.bottom + gap;
+    posClass = 'pos-below';
+  }
+
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.style.top = top + 'px';
+  tooltipEl.classList.remove('pos-above', 'pos-below');
+  tooltipEl.classList.add(posClass);
+
+  // Keep the arrow pointing at the hovered cell's actual center even
+  // when the tooltip box itself had to shift to stay on-screen.
+  const arrowLeft = Math.max(10, Math.min(targetCenterX - left, tw - 10));
+  tooltipEl.style.setProperty('--arrow-left', arrowLeft + 'px');
+}
+
+function showTooltip(target) {
+  const text = target.getAttribute('data-tooltip');
+  if (!text) return;
+  tooltipTarget = target;
+  tooltipEl.textContent = text;
+  // opacity:0 (not display:none) keeps the element measurable here —
+  // offsetWidth/offsetHeight below need its final size before showing.
+  positionTooltip(target);
+  tooltipEl.classList.add('show');
+}
+
+function hideTooltip() {
+  tooltipTarget = null;
+  tooltipEl.classList.remove('show');
+}
+
+document.body.addEventListener('mouseover', function(e) {
+  const target = e.target.closest('[data-tooltip]');
+  if (!target || target === tooltipTarget) return;
+  showTooltip(target);
+});
+document.body.addEventListener('mouseout', function(e) {
+  const target = e.target.closest('[data-tooltip]');
+  if (!target || target.contains(e.relatedTarget)) return;
+  hideTooltip();
+});
+// position:fixed means the tooltip won't track the page scrolling on
+// its own — reposition while visible, and just hide on resize since
+// the on-screen-clamping math would otherwise be stale until the next hover.
+window.addEventListener('scroll', function() {
+  if (tooltipTarget) positionTooltip(tooltipTarget);
+}, true);
+window.addEventListener('resize', hideTooltip);
+
 function renderKpis(summary) {
   document.getElementById('kpiTotalItems').textContent = fmtNum(summary.totalItems);
   document.getElementById('kpiTodayAdditions').textContent = fmtNum(summary.todayAdditions);
@@ -336,7 +573,7 @@ function renderLowStock(rows) {
     return '<tr>' +
       '<td style="font-family:monospace">' + escapeHtml(r.arn) + '</td>' +
       '<td>' + escapeHtml(r.itemName) + '</td>' +
-      '<td>' + escapeHtml(r.department) + '</td>' +
+      '<td' + departmentTooltip(r.department) + '>' + escapeHtml(r.department) + '</td>' +
       '<td><span class="status-badge low">' + fmtNum(r.qty) + '</span></td>' +
       '<td>' + fmtNum(r.minimumStock) + '</td>' +
     '</tr>';
@@ -352,9 +589,9 @@ function renderOutOfStock(rows) {
   }
   body.innerHTML = rows.map(function(r) {
     return '<tr>' +
-      '<td style="font-family:monospace">' + escapeHtml(r.arn) + '</td>' +
+      '<td style="font-family:monospace">' + escapeHtml(r.masterId) + '</td>' +
       '<td>' + escapeHtml(r.itemName) + '</td>' +
-      '<td>' + escapeHtml(r.department) + '</td>' +
+      '<td>' + escapeHtml(r.baseUnit) + '</td>' +
       '<td><span class="status-badge out">0</span></td>' +
     '</tr>';
   }).join('');
@@ -373,7 +610,7 @@ function renderRecent(rows) {
       '<td>' + escapeHtml(r.date) + ' ' + escapeHtml(r.time) + '</td>' +
       '<td style="font-family:monospace">' + escapeHtml(r.arn) + '</td>' +
       '<td>' + escapeHtml(r.itemName) + '</td>' +
-      '<td>' + escapeHtml(r.department) + '</td>' +
+      '<td' + departmentTooltip(r.department) + '>' + escapeHtml(r.department) + '</td>' +
       '<td>' + escapeHtml(r.adjType) + '</td>' +
       '<td>' + fmtNum(r.quantity) + '</td>' +
       '<td class="effect-tag ' + (isAdd ? 'add' : 'reduce') + '">' + (isAdd ? '+ Add' : '− Deduct') + '</td>' +
@@ -381,7 +618,25 @@ function renderRecent(rows) {
   }).join('');
 }
 
-function renderGroupTable(bodyId, rows, labelKey) {
+function renderRecentInward(rows) {
+  const body = document.getElementById('recentInwardBody');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="6" class="empty-row">No recent Tally receipts.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r) {
+    return '<tr>' +
+      '<td>' + escapeHtml(r.date) + '</td>' +
+      '<td style="font-family:monospace">' + escapeHtml(r.voucherNumber) + '</td>' +
+      '<td>' + escapeHtml(r.itemName) + '</td>' +
+      '<td>' + fmtNum(r.quantity) + '</td>' +
+      '<td>' + escapeHtml(r.unit) + '</td>' +
+      '<td>' + escapeHtml(r.partyLedger) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function renderGroupTable(bodyId, rows, labelKey, tooltipFn) {
   const body = document.getElementById(bodyId);
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="2" class="empty-row">No data yet.</td></tr>';
@@ -392,7 +647,7 @@ function renderGroupTable(bodyId, rows, labelKey) {
   const sorted = rows.slice().sort(function(a, b) { return b.itemCount - a.itemCount; });
   body.innerHTML = sorted.map(function(r) {
     return '<tr>' +
-      '<td>' + escapeHtml(r[labelKey]) + '</td>' +
+      '<td' + (tooltipFn ? tooltipFn(r[labelKey]) : '') + '>' + escapeHtml(r[labelKey]) + '</td>' +
       '<td>' + fmtNum(r.itemCount) + '</td>' +
     '</tr>';
   }).join('');
@@ -438,8 +693,16 @@ async function loadDashboard() {
   renderLowStock(result.lowStock || []);
   renderOutOfStock(result.outOfStock || []);
   renderRecent(result.recentAdjustments || []);
-  renderGroupTable('deptBody', result.departmentSummary || [], 'department');
-  renderGroupTable('subcatBody', result.categorySummary || [], 'subcategory');
+  renderRecentInward(result.recentInwardReceipts || []);
+  // Inventory by Department: department code only, no ambiguity.
+  renderGroupTable('deptBody', result.departmentSummary || [], 'department', departmentTooltip);
+  // Inventory by Subcategory: no department accompanies each row here
+  // (the existing, unmodified backend aggregates subcategories across
+  // every department) — subcategoryTooltip(null, code) falls through
+  // to the cross-department-unambiguous lookup rather than guessing.
+  renderGroupTable('subcatBody', result.categorySummary || [], 'subcategory', function(code) {
+    return subcategoryTooltip(null, code);
+  });
   renderTrend('weeklyTrendBody', result.weeklyTrend || [], 'week');
   renderTrend('monthlyTrendBody', result.monthlyTrend || [], 'month');
 }
