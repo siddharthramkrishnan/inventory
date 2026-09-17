@@ -241,7 +241,7 @@ def main() -> int:
         trnc.connect()
     except TallyConnectionError as exc:
         print("FAILED to connect to Tally: " + str(exc))
-        return 1
+        return 2
     print("  Connected.")
 
     print("Step 2/3: retrieving and parsing Receipt Note vouchers...")
@@ -250,7 +250,7 @@ def main() -> int:
         line_items = trnc.parse_receipt_notes(xml_text)
     except TallyConnectionError as exc:
         print("FAILED to retrieve Receipt Notes: " + str(exc))
-        return 1
+        return 3
     recent = filter_recent(line_items)
     print("  Retrieved " + str(len(line_items)) + " line item(s) total; "
           + str(len(recent)) + " within the last " + str(RECENT_WINDOW_DAYS) + " days.")
@@ -262,7 +262,7 @@ def main() -> int:
         result = sync_receipt_snapshot(snapshot)
     except TallyReceiptSyncError as exc:
         print("FAILED to sync snapshot: " + str(exc))
-        return 1
+        return 4
 
     print()
     print("=== Sync summary ===")

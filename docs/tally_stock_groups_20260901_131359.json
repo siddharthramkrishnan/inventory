@@ -1,0 +1,86 @@
+[
+  {
+    "name": "2-8 Refrigerated Items",
+    "parent": "Refrigerated Inventory",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00002a7f",
+    "master_id": "10879",
+    "alter_id": "73627"
+  },
+  {
+    "name": "ACIX 100 Reader Group",
+    "parent": "Primary",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001d80",
+    "master_id": "7552",
+    "alter_id": "68638"
+  },
+  {
+    "name": "Cartridges",
+    "parent": "Moving Inventory",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001f88",
+    "master_id": "8072",
+    "alter_id": "68643"
+  },
+  {
+    "name": "Covidx - Kits & Buffer Inventory",
+    "parent": "Primary",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001d47",
+    "master_id": "7495",
+    "alter_id": "68636"
+  },
+  {
+    "name": "HIK & SW Items",
+    "parent": "Primary",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001db3",
+    "master_id": "7603",
+    "alter_id": "68639"
+  },
+  {
+    "name": "Inactive Stock Items",
+    "parent": "Primary",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00002a4b",
+    "master_id": "10827",
+    "alter_id": "73537"
+  },
+  {
+    "name": "MFG & Common Inventory",
+    "parent": "Primary",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001d44",
+    "master_id": "7492",
+    "alter_id": "68635"
+  },
+  {
+    "name": "Moving Inventory",
+    "parent": "MFG & Common Inventory",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001d45",
+    "master_id": "7493",
+    "alter_id": "68641"
+  },
+  {
+    "name": "Non Moving Inventory",
+    "parent": "MFG & Common Inventory",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001dee",
+    "master_id": "7662",
+    "alter_id": "68642"
+  },
+  {
+    "name": "Non Refrigerated Inventory",
+    "parent": "Primary",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001d41",
+    "master_id": "7489",
+    "alter_id": "68634"
+  },
+  {
+    "name": "R&D Inventory",
+    "parent": "Primary",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001f98",
+    "master_id": "8088",
+    "alter_id": "68640"
+  },
+  {
+    "name": "Refrigerated Inventory",
+    "parent": "Primary",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00001d79",
+    "master_id": "7545",
+    "alter_id": "68637"
+  }
+]

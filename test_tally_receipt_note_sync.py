@@ -466,5 +466,71 @@ for _fname in ("tally_receipt_note_client.py", "tally_receipt_note_parser.py", "
 # checked FOR" from "this text is what's being checked to be ABSENT."
 # Confirmed clean via test_no_tally_writes.py after removing it.
 
+# ---------------------------------------------------------------------
+# 8. main() -- distinct exit codes per failure class, and success.
+#    Monkeypatches the module-level names main() actually calls
+#    (trns.trnc.connect/get_receipt_notes/parse_receipt_notes,
+#    trns.sync_receipt_snapshot) rather than adding a deps= parameter to
+#    main() itself -- main() takes no deps argument and isn't refactored
+#    to add one, matching every other function in this file's existing
+#    dependency-injection convention, which main() deliberately doesn't
+#    participate in.
+# ---------------------------------------------------------------------
+import contextlib
+import io
+
+
+def _run_main_with_patches(connect=None, get_receipt_notes=None, parse_receipt_notes=None, sync_receipt_snapshot=None):
+    originals = {
+        "connect": trns.trnc.connect,
+        "get_receipt_notes": trns.trnc.get_receipt_notes,
+        "parse_receipt_notes": trns.trnc.parse_receipt_notes,
+        "sync_receipt_snapshot": trns.sync_receipt_snapshot,
+    }
+    if connect is not None:
+        trns.trnc.connect = connect
+    if get_receipt_notes is not None:
+        trns.trnc.get_receipt_notes = get_receipt_notes
+    if parse_receipt_notes is not None:
+        trns.trnc.parse_receipt_notes = parse_receipt_notes
+    if sync_receipt_snapshot is not None:
+        trns.sync_receipt_snapshot = sync_receipt_snapshot
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            return trns.main()
+    finally:
+        trns.trnc.connect = originals["connect"]
+        trns.trnc.get_receipt_notes = originals["get_receipt_notes"]
+        trns.trnc.parse_receipt_notes = originals["parse_receipt_notes"]
+        trns.sync_receipt_snapshot = originals["sync_receipt_snapshot"]
+
+
+rc_connect_fail = _run_main_with_patches(
+    connect=lambda: (_ for _ in ()).throw(trns.TallyConnectionError("no Tally")),
+)
+check("main() returns exit code 2 on a Tally connection failure", rc_connect_fail == 2)
+
+rc_retrieval_fail = _run_main_with_patches(
+    connect=lambda: True,
+    get_receipt_notes=lambda: (_ for _ in ()).throw(trns.TallyConnectionError("timed out")),
+)
+check("main() returns exit code 3 on a Receipt Note retrieval failure", rc_retrieval_fail == 3)
+
+rc_appsscript_fail = _run_main_with_patches(
+    connect=lambda: True,
+    get_receipt_notes=lambda: envelope(VOUCHER_SINGLE_ITEM),
+    parse_receipt_notes=lambda xml_text: trnp.parse_receipt_notes_xml(xml_text),
+    sync_receipt_snapshot=lambda snapshot, timeout=60: (_ for _ in ()).throw(trns.TallyReceiptSyncError("Invalid sync secret.")),
+)
+check("main() returns exit code 4 on an Apps Script sync failure", rc_appsscript_fail == 4)
+
+rc_success = _run_main_with_patches(
+    connect=lambda: True,
+    get_receipt_notes=lambda: envelope(VOUCHER_SINGLE_ITEM),
+    parse_receipt_notes=lambda xml_text: trnp.parse_receipt_notes_xml(xml_text),
+    sync_receipt_snapshot=lambda snapshot, timeout=60: {"status": "success", "itemsWritten": len(snapshot), "syncedAt": "2026-09-16T00:00:00.000Z"},
+)
+check("main() returns exit code 0 on success", rc_success == 0)
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

@@ -136,13 +136,32 @@ slightly different header wording/spelling:
 | `notificationSent` | `notificationsent` | never written by any code path — likely meant to be manually ticked once someone confirms the Slack DM landed |
 | `expDate` | `expdate` | |
 | `basicAmount` | `basicamont` or `basicamount` (typo tolerance) | |
-| `otherCharges` | `othercharges` | applies once per GRN No., not per item |
+| `otherCharges` | `othercharges` | applies once per GRN No., not per item — same GRN-level value duplicated on every row of a multi-item GRN (no separate GRN-header row exists) |
 | `gst` | `gst` | may be a computed `"NNN (18% GST)"` string, see `formatGst` in `grn-entry.html` |
+| `taxApplication` | `taxapplication` | `'Per Item'` (default) or `'Overall'` — see "GRN-level Overall Tax" below |
+| `overallGst` / `overallCgst` / `overallSgst` / `overallIgst` | `overallgst` / `overallcgst` / `overallsgst` / `overalligst` | resolved currency amounts, 0 unless `taxApplication` is `'Overall'`; same GRN-level value duplicated on every row, exactly like `otherCharges` |
 
 Plus two columns managed exclusively by the backend (appended automatically
 if missing, via `ensureGrnVerificationColumns`): **Verification Status**
 (`'Pending Verification'` → `'Verified'`), **Verified By**, **Verified
 Date**.
+
+### GRN-level Overall Tax (`taxApplication`, added alongside the existing per-item GST/CGST/SGST/IGST)
+
+`grn-entry.html`'s "Tax Application" selector picks between the original
+per-item GST/CGST/SGST/IGST entry (`'Per Item'`, still the default — GST/
+CGST/SGST/IGST stay optional per item, exactly as before) and one combined
+tax for the whole delivery (`'Overall'`). In Overall mode: every item's own
+`gst`/`cgst`/`sgst`/`igst` columns are forced to 0 (both client- and
+server-enforced — `grnCreate()` rejects a submission where an item still
+carries its own nonzero tax while `taxApplication` is `'Overall'`, to
+prevent double taxation); the Overall tax is resolved once, against the
+SUM of every item's own taxable amount (basic amount minus discount) in
+that submission, using the same GST-alone / CGST+SGST / IGST-alone
+mutual-exclusivity rule the per-item fields already enforce
+(`validateGrnOverallTaxFields` in `backend/Code.gs`/`Code.js`); the
+resolved amount is written into the four `overall*` columns above,
+duplicated on every row of the GRN the same way `otherCharges` already is.
 
 ### Tab: "Slack-user IDs"
 

@@ -1,0 +1,989 @@
+[
+  {
+    "po_no": "ACHIRA/26-27/1A",
+    "po_date_raw": "20260401",
+    "po_date": "01-04-2026",
+    "vendor": "Sri Vinayaka Gas Agencies",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00006437",
+    "narration": "Quantity of goods ordered (Open Order)",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Nitrogen - UHP - Cylinders",
+        "quantity": 10.0,
+        "unit": "Nos",
+        "rate": 1200.0,
+        "rate_unit": "Nos",
+        "amount": 12000.0
+      },
+      {
+        "sl_no": 2,
+        "description": "Liquid Nitrogen",
+        "quantity": 200.0,
+        "unit": "Lts",
+        "rate": 75.0,
+        "rate_unit": "Lts",
+        "amount": 15000.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/63",
+    "po_date_raw": "20260616",
+    "po_date": "16-06-2026",
+    "vendor": "Advanced Microdevices Pvt. Ltd",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00006454",
+    "narration": "Quantity of PO raised against request by Komal : CPR_RD_Sl1084 : approved DD on 12/06/26",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "BFR10D6012X300X - Blood Separation Membrane Type: FR-1(0.6), Size: 12x300mm",
+        "quantity": 300.0,
+        "unit": "Pcs",
+        "rate": 90.0,
+        "rate_unit": "Pcs",
+        "amount": 27000.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/36",
+    "po_date_raw": "20260616",
+    "po_date": "16-06-2026",
+    "vendor": "Prahas Healthcare LLP",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-0000645b",
+    "narration": "Quantity of goods ordered against request by Komal CPR_RD_1083 : Approved DD on 12/06/26",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "PRHRMB005 Goat antirabbit IgG",
+        "quantity": 5000.0,
+        "unit": "UG",
+        "rate": 0.12,
+        "rate_unit": "UG",
+        "amount": 600.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/40",
+    "po_date_raw": "20260619",
+    "po_date": "19-06-2026",
+    "vendor": "Cangzhou Shengfeng Plastic Product Co. Ltd",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00006409",
+    "narration": "Add : USD 135 as shipping charges : Request by Sudarshan",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "LB003 - 60ul",
+        "quantity": 10000.0,
+        "unit": "Nos",
+        "rate": 0.02,
+        "rate_unit": "Nos",
+        "amount": null
+      },
+      {
+        "sl_no": 2,
+        "description": "LB002-50uL",
+        "quantity": 1000.0,
+        "unit": "Nos",
+        "rate": null,
+        "rate_unit": null,
+        "amount": null
+      },
+      {
+        "sl_no": 3,
+        "description": "DG039-LY-1",
+        "quantity": 1000.0,
+        "unit": "Nos",
+        "rate": null,
+        "rate_unit": null,
+        "amount": null
+      },
+      {
+        "sl_no": 4,
+        "description": "K157-XH",
+        "quantity": 15.0,
+        "unit": "Nos",
+        "rate": null,
+        "rate_unit": null,
+        "amount": null
+      },
+      {
+        "sl_no": 5,
+        "description": "K019-JH3.8",
+        "quantity": 15.0,
+        "unit": "Nos",
+        "rate": null,
+        "rate_unit": null,
+        "amount": null
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/40A",
+    "po_date_raw": "20260630",
+    "po_date": "30-06-2026",
+    "vendor": "Royal Hardware Mart",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00006478",
+    "narration": "Quantity of goods ordered as per request by RD team",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Polycarbonate Sheet 0.80mmx600mmx600mm",
+        "quantity": 1.0,
+        "unit": "Nos",
+        "rate": 400.0,
+        "rate_unit": "Nos",
+        "amount": 400.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/43",
+    "po_date_raw": "20260702",
+    "po_date": "02-07-2026",
+    "vendor": "OY Medix Biochemica AB",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000063d1",
+    "narration": "Quantity of goods ordered against Sl # 1098 of procurement sheet : requested by Komal, Approved by DD",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "100145 - Anti-h CRP - 6402 SPTN-5",
+        "quantity": 5000.0,
+        "unit": "UG",
+        "rate": 0.14,
+        "rate_unit": "UG",
+        "amount": null
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/44",
+    "po_date_raw": "20260702",
+    "po_date": "02-07-2026",
+    "vendor": "Shree Kateel Products",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000063d2",
+    "narration": "Quantity of goods ordered against urgent requirement by R&D Team",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Micro Cover Glass -Square 22mm",
+        "quantity": 10.0,
+        "unit": "Pack",
+        "rate": 110.0,
+        "rate_unit": "Pack",
+        "amount": 1100.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/45",
+    "po_date_raw": "20260702",
+    "po_date": "02-07-2026",
+    "vendor": "Sigma Aldrich Chemicals Pvt. Ltd",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000063d3",
+    "narration": "Quantity of goods ordered Sl # 1097 Request by Komal, Approved by DD",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Expired 51",
+        "quantity": 500000.0,
+        "unit": "MG",
+        "rate": 0.04,
+        "rate_unit": "MG",
+        "amount": 19060.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/46",
+    "po_date_raw": "20260702",
+    "po_date": "02-07-2026",
+    "vendor": "Weldon Biotech India Pvt. Ltd",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000063d4",
+    "narration": "Quantity of PO raised against request by Komal : Sr # 1096 : Approved by DD",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "RD194349220R - Human MxA Protein ELISA",
+        "quantity": 1.0,
+        "unit": "Pack",
+        "rate": 61500.0,
+        "rate_unit": "Pack",
+        "amount": 61500.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/47",
+    "po_date_raw": "20260702",
+    "po_date": "02-07-2026",
+    "vendor": "Manasa Agencies",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000063d5",
+    "narration": "Quantity of goods ordered against Request per Sl # 1095 : Approved by DD",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "SRL-87868 - CHAPS Buffer Ep",
+        "quantity": 1000.0,
+        "unit": "MG",
+        "rate": 0.68,
+        "rate_unit": "MG",
+        "amount": 675.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/48",
+    "po_date_raw": "20260702",
+    "po_date": "02-07-2026",
+    "vendor": "Ultrananotech Pvt. Ltd",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000063d6",
+    "narration": "Quantity of goods ordered against request by Komal : # 1094 : Approved by DD",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "AUCR80 - 80 nm BioReady Gold Nanospheres for Passive Adsorption",
+        "quantity": 50000.0,
+        "unit": "UI",
+        "rate": 2.6,
+        "rate_unit": "UI",
+        "amount": 130200.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/49",
+    "po_date_raw": "20260702",
+    "po_date": "02-07-2026",
+    "vendor": "Yashraj  Biotechnology Ltd",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000063d7",
+    "narration": "Quantity of goods ordered agasint request by Komal Sr # 1092 : Approved by DD",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Normal Goat Serum (Non-Immunized)_Yashraj",
+        "quantity": 10000.0,
+        "unit": "UI",
+        "rate": null,
+        "rate_unit": null,
+        "amount": 0.01
+      },
+      {
+        "sl_no": 2,
+        "description": "HBsAg Ad Native Antigen - Yashraj",
+        "quantity": 100.0,
+        "unit": "UG",
+        "rate": null,
+        "rate_unit": null,
+        "amount": 0.01
+      },
+      {
+        "sl_no": 3,
+        "description": "HBsAg Ay Native Antigen - Yashraj",
+        "quantity": 100.0,
+        "unit": "UG",
+        "rate": null,
+        "rate_unit": null,
+        "amount": 0.01
+      },
+      {
+        "sl_no": 4,
+        "description": "CRP Monoclonal Antibody-Capture - Yashraj",
+        "quantity": 100.0,
+        "unit": "UG",
+        "rate": null,
+        "rate_unit": null,
+        "amount": 0.01
+      },
+      {
+        "sl_no": 5,
+        "description": "CRP Monoclonal Antibody-Detector - Yashraj",
+        "quantity": 100.0,
+        "unit": "UG",
+        "rate": null,
+        "rate_unit": null,
+        "amount": 0.01
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/50",
+    "po_date_raw": "20260702",
+    "po_date": "02-07-2026",
+    "vendor": "Cash",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000063e7",
+    "narration": "Quantity of open order raised against blood bags",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Blood Bag",
+        "quantity": 10.0,
+        "unit": "Nos",
+        "rate": 4000.0,
+        "rate_unit": "Nos",
+        "amount": 40000.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/51",
+    "po_date_raw": "20260704",
+    "po_date": "04-07-2026",
+    "vendor": "Sai Tools and Engineering",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-0000640b",
+    "narration": "Quantity of goods ordered by Nithin (Direct order)",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "IT HSS - Drill 4.6",
+        "quantity": 1.0,
+        "unit": "Pcs",
+        "rate": 95.0,
+        "rate_unit": "Pcs",
+        "amount": 95.0
+      },
+      {
+        "sl_no": 2,
+        "description": "IT HSS - Drill 4.7",
+        "quantity": 1.0,
+        "unit": "Pcs",
+        "rate": 95.0,
+        "rate_unit": "Pcs",
+        "amount": 95.0
+      },
+      {
+        "sl_no": 3,
+        "description": "IT HSS - Drill 1.0",
+        "quantity": 10.0,
+        "unit": "Pcs",
+        "rate": 31.0,
+        "rate_unit": "Pcs",
+        "amount": 310.0
+      },
+      {
+        "sl_no": 4,
+        "description": "Feeler Guage 03 - 1.0mm",
+        "quantity": 1.0,
+        "unit": "Pcs",
+        "rate": 450.0,
+        "rate_unit": "Pcs",
+        "amount": 450.0
+      },
+      {
+        "sl_no": 5,
+        "description": "IT HSS - Drill 0.5",
+        "quantity": 5.0,
+        "unit": "Pcs",
+        "rate": 64.0,
+        "rate_unit": "Pcs",
+        "amount": 320.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/52",
+    "po_date_raw": "20260706",
+    "po_date": "06-07-2026",
+    "vendor": "Pro Tech",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-0000640c",
+    "narration": "Quantity of goods ordered by Sudarshan against requirement for validation study boxes",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Corrugated Box - 3 Ply - 26x18x18cm",
+        "quantity": 6.0,
+        "unit": "Pcs",
+        "rate": 17.47,
+        "rate_unit": "Pcs",
+        "amount": 104.82
+      },
+      {
+        "sl_no": 2,
+        "description": "Corrugated Box - 5 Ply - 60x40x30 cm",
+        "quantity": 1.0,
+        "unit": "Pcs",
+        "rate": 65.0,
+        "rate_unit": "Pcs",
+        "amount": 65.0
+      },
+      {
+        "sl_no": 3,
+        "description": "EPE Foam - White 2mm x 5 Mtr Roll",
+        "quantity": 1.0,
+        "unit": "roll",
+        "rate": 100.7,
+        "rate_unit": "roll",
+        "amount": 100.7
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/53",
+    "po_date_raw": "20260706",
+    "po_date": "06-07-2026",
+    "vendor": "Elegant Labels",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00006428",
+    "narration": "Quantity of goods ordered agianst request by Sudarshan",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Box Label - RPT - Paper",
+        "quantity": 12.0,
+        "unit": "Pcs",
+        "rate": 12.0,
+        "rate_unit": "Pcs",
+        "amount": 144.0
+      },
+      {
+        "sl_no": 2,
+        "description": "Box Label  Buffer - RPT - Sticker",
+        "quantity": 12.0,
+        "unit": "Pcs",
+        "rate": 6.0,
+        "rate_unit": "Pcs",
+        "amount": 72.0
+      },
+      {
+        "sl_no": 3,
+        "description": "Lysis Buffer Label - RPT - Paper",
+        "quantity": 12.0,
+        "unit": "Pcs",
+        "rate": 6.0,
+        "rate_unit": "Pcs",
+        "amount": 72.0
+      },
+      {
+        "sl_no": 4,
+        "description": "Assay Buffer Tube Label - RPT - Sticker",
+        "quantity": 150.0,
+        "unit": "Pcs",
+        "rate": 1.0,
+        "rate_unit": "Pcs",
+        "amount": 150.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/54",
+    "po_date_raw": "20260706",
+    "po_date": "06-07-2026",
+    "vendor": "Vasa Scientific Co",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00006429",
+    "narration": "Quantity of goods ordered - common inventory on urgent basis",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "BS-440 - Micro Cover Glass Square 1.22*22mm",
+        "quantity": 1000.0,
+        "unit": "Pcs",
+        "rate": 1.68,
+        "rate_unit": "Pcs",
+        "amount": 1680.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/55",
+    "po_date_raw": "20260706",
+    "po_date": "06-07-2026",
+    "vendor": "Rajini Industries",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-0000642a",
+    "narration": "Quantity of goods ordered : request by Nithin Platform Sl # 764 : Approved DD on 06/06/2026",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "FIAI-OH-G-001",
+        "quantity": 80.0,
+        "unit": "Pcs",
+        "rate": 700.0,
+        "rate_unit": "Pcs",
+        "amount": 56000.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/56",
+    "po_date_raw": "20260708",
+    "po_date": "08-07-2026",
+    "vendor": "Vardhini Healthcare",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-0000642b",
+    "narration": "Quantity of goods ordered against request by Bhavna / RD/Sl # 1101 : Approved DD on 06/07/26",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Labcare Influenza A+ B Rapid",
+        "quantity": 100.0,
+        "unit": "Test",
+        "rate": 186.67,
+        "rate_unit": "Test",
+        "amount": 18666.68
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/57",
+    "po_date_raw": "20260708",
+    "po_date": "08-07-2026",
+    "vendor": "AIC Enterprises Pvt. Ltd",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-0000642c",
+    "narration": "Quantity of goods ordered against request by Bhavna : RD:Sl # 100 : Approved DD 06.07.26",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "300-02AA- Human IFN-alpha 2 (alpha2a) Recombinant Protein PeproTech",
+        "quantity": 100.0,
+        "unit": "UI",
+        "rate": 187.18,
+        "rate_unit": "UI",
+        "amount": 18717.85
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/58",
+    "po_date_raw": "20260708",
+    "po_date": "08-07-2026",
+    "vendor": "Lakshmi Enterprises",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-0000642d",
+    "narration": "Quantity of goods ordered against request by Sudarshan : CPR_MFG_349 : approved DD on 19/06/2026",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Well_Le",
+        "quantity": 1000.0,
+        "unit": "Pcs",
+        "rate": 9.75,
+        "rate_unit": "Pcs",
+        "amount": 9750.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/59",
+    "po_date_raw": "20260708",
+    "po_date": "08-07-2026",
+    "vendor": "Amazon Seller Services Pvt. Ltd",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-0000642e",
+    "narration": "Quantity of goods ordered : Request by Sudarshan per CPR_MFG_Sl 352 - 355 _ Approved DD on 06/07/2026",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Round Shape Round Adhesive Stickers - Red",
+        "quantity": 2000.0,
+        "unit": "Pcs",
+        "rate": 0.14,
+        "rate_unit": "Pcs",
+        "amount": 271.18
+      },
+      {
+        "sl_no": 2,
+        "description": "Round Shape Round Adhesive Stickers - Green",
+        "quantity": 2000.0,
+        "unit": "Pcs",
+        "rate": 0.14,
+        "rate_unit": "Pcs",
+        "amount": 271.18
+      },
+      {
+        "sl_no": 3,
+        "description": "Round Shape Round Adhesive Stickers - Yellow",
+        "quantity": 2000.0,
+        "unit": "Pcs",
+        "rate": 0.16,
+        "rate_unit": "Pcs",
+        "amount": 320.34
+      },
+      {
+        "sl_no": 4,
+        "description": "Round Shape Round Adhesive Stickers - White",
+        "quantity": 2000.0,
+        "unit": "Pcs",
+        "rate": 0.22,
+        "rate_unit": "Pcs",
+        "amount": 432.2
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/60",
+    "po_date_raw": "20260708",
+    "po_date": "08-07-2026",
+    "vendor": "Amazon Seller Services Pvt. Ltd",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-0000642f",
+    "narration": "Quantity of goods ordered against request by Sudarshan per CPR_MFG_Sl# 351 : Approved DD on 06/07/26",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Stop Watch - Timer for Study",
+        "quantity": 2.0,
+        "unit": "Pcs",
+        "rate": 187.63,
+        "rate_unit": "Pcs",
+        "amount": 375.26
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/61",
+    "po_date_raw": "20260708",
+    "po_date": "08-07-2026",
+    "vendor": "Shree Kateel Products",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00006430",
+    "narration": "Quantity of goods ordered against request by Shivraj on 23/6 and 08.07_CPR_Common_Sl # 432-439 : Approved by Katti",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Kimwipes - Pack of 280",
+        "quantity": 10.0,
+        "unit": "Pkt",
+        "rate": 195.0,
+        "rate_unit": "Pkt",
+        "amount": 1950.0
+      },
+      {
+        "sl_no": 2,
+        "description": "Autoclave Cover - 12*16",
+        "quantity": 10.0,
+        "unit": "KGram",
+        "rate": 485.0,
+        "rate_unit": "KGram",
+        "amount": 4850.0
+      },
+      {
+        "sl_no": 3,
+        "description": "Centrifuge Tube with Screw Cap - PP 50 ML",
+        "quantity": 500.0,
+        "unit": "Nos",
+        "rate": 18.25,
+        "rate_unit": "Nos",
+        "amount": 9125.0
+      },
+      {
+        "sl_no": 4,
+        "description": "Centrifuge Tube with Screw Cap PP15ml",
+        "quantity": 500.0,
+        "unit": "Nos",
+        "rate": 12.45,
+        "rate_unit": "Nos",
+        "amount": 6225.0
+      },
+      {
+        "sl_no": 5,
+        "description": "Petridish Plastic 90mm",
+        "quantity": 500.0,
+        "unit": "Nos",
+        "rate": 9.84,
+        "rate_unit": "Nos",
+        "amount": 4918.0
+      },
+      {
+        "sl_no": 6,
+        "description": "Micro Tips 200 ul",
+        "quantity": 5000.0,
+        "unit": "Nos",
+        "rate": 0.62,
+        "rate_unit": "Nos",
+        "amount": 3100.0
+      },
+      {
+        "sl_no": 7,
+        "description": "Gloves Small",
+        "quantity": 20.0,
+        "unit": "Pack",
+        "rate": 360.0,
+        "rate_unit": "Pack",
+        "amount": 7200.0
+      },
+      {
+        "sl_no": 8,
+        "description": "Gloves Medium",
+        "quantity": 20.0,
+        "unit": "Pack",
+        "rate": 360.0,
+        "rate_unit": "Pack",
+        "amount": 7200.0
+      },
+      {
+        "sl_no": 9,
+        "description": "Hairnets",
+        "quantity": 1000.0,
+        "unit": "Nos",
+        "rate": 2.1,
+        "rate_unit": "Nos",
+        "amount": 2100.0
+      },
+      {
+        "sl_no": 10,
+        "description": "Masks",
+        "quantity": 1000.0,
+        "unit": "Nos",
+        "rate": 2.3,
+        "rate_unit": "Nos",
+        "amount": 2300.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/62",
+    "po_date_raw": "20260721",
+    "po_date": "21-07-2026",
+    "vendor": "TDConnex Chennai Private Limited",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-00006444",
+    "narration": "Quantity of goods ordered as per mail to Shane dt. 21.07.26 -",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Dome_1TC-0001-0400",
+        "quantity": 50000.0,
+        "unit": "Nos",
+        "rate": 4.1,
+        "rate_unit": "Nos",
+        "amount": 205000.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/64",
+    "po_date_raw": "20260727",
+    "po_date": "27-07-2026",
+    "vendor": "Durga Trading Company",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000064a8",
+    "narration": "Quantity of goods ordered against CPR_Common_Sudarshan Sr # 445 : Approved DD on 17/07/26",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "MKC-1 220 Volt",
+        "quantity": 1.0,
+        "unit": "Pcs",
+        "rate": 2300.0,
+        "rate_unit": "Pcs",
+        "amount": 2300.0
+      },
+      {
+        "sl_no": 2,
+        "description": "MKC-1 120 Volt",
+        "quantity": 1.0,
+        "unit": "Pcs",
+        "rate": 2300.0,
+        "rate_unit": "Pcs",
+        "amount": 2300.0
+      },
+      {
+        "sl_no": 3,
+        "description": "MKC-2 24 Volt",
+        "quantity": 1.0,
+        "unit": "Pcs",
+        "rate": 3000.0,
+        "rate_unit": "Pcs",
+        "amount": 3000.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/65",
+    "po_date_raw": "20260804",
+    "po_date": "04-08-2026",
+    "vendor": "Lakshmi Enterprises",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000064be",
+    "narration": "Quantity of goods ordered against CPRMFG_Sl# 373 : request by Sudarshan, approved by katti",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Beta Cartridge_Transparent_Lakshmi Enterprises",
+        "quantity": 2000.0,
+        "unit": "Pcs",
+        "rate": 20.0,
+        "rate_unit": "Pcs",
+        "amount": 40000.0
+      },
+      {
+        "sl_no": 2,
+        "description": "Retainer",
+        "quantity": 2000.0,
+        "unit": "Nos",
+        "rate": 8.75,
+        "rate_unit": "Nos",
+        "amount": 17500.0
+      },
+      {
+        "sl_no": 3,
+        "description": "Well_Le",
+        "quantity": 1000.0,
+        "unit": "Pcs",
+        "rate": 9.75,
+        "rate_unit": "Pcs",
+        "amount": 9750.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/66",
+    "po_date_raw": "20260804",
+    "po_date": "04-08-2026",
+    "vendor": "Fapon International Limited",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000064bf",
+    "narration": "Quantity of goods ordered against CPR_R&D_Sl # 1109 & 1114 : requested by Komal & Vinayak respectively & approved by DD on 03/08/2026",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "HIER-M-005 - Heterophilic Immunoglobulin Elimination Reagent",
+        "quantity": 10000.0,
+        "unit": "UG",
+        "rate": null,
+        "rate_unit": null,
+        "amount": null
+      },
+      {
+        "sl_no": 2,
+        "description": "BRCNS1S119- Monoclonal antibody",
+        "quantity": 4000.0,
+        "unit": "UG",
+        "rate": 0.1,
+        "rate_unit": "UG",
+        "amount": null
+      },
+      {
+        "sl_no": 3,
+        "description": "BRCNS1S120 - Monoclonal antibody",
+        "quantity": 4000.0,
+        "unit": "UG",
+        "rate": 0.1,
+        "rate_unit": "UG",
+        "amount": null
+      },
+      {
+        "sl_no": 4,
+        "description": "BRCNS1S121- Monoclonal antibody",
+        "quantity": 4000.0,
+        "unit": "UG",
+        "rate": 0.1,
+        "rate_unit": "UG",
+        "amount": null
+      },
+      {
+        "sl_no": 5,
+        "description": "BRJNS1S107- Monoclonal antibody",
+        "quantity": 4000.0,
+        "unit": "UG",
+        "rate": 0.1,
+        "rate_unit": "UG",
+        "amount": null
+      },
+      {
+        "sl_no": 6,
+        "description": "GRNDEN105 - Dengue recombinant antigen",
+        "quantity": 500.0,
+        "unit": "UG",
+        "rate": 0.4,
+        "rate_unit": "UG",
+        "amount": null
+      },
+      {
+        "sl_no": 7,
+        "description": "GRNDEN106 - Dengue recombinant antigen",
+        "quantity": 500.0,
+        "unit": "UG",
+        "rate": 0.4,
+        "rate_unit": "UG",
+        "amount": null
+      },
+      {
+        "sl_no": 8,
+        "description": "GRNDEN107 - Dengue recombinant antigen",
+        "quantity": 500.0,
+        "unit": "UG",
+        "rate": 0.4,
+        "rate_unit": "UG",
+        "amount": null
+      },
+      {
+        "sl_no": 9,
+        "description": "GRNDEN108 - Dengue recombinant antigen",
+        "quantity": 1000.0,
+        "unit": "UG",
+        "rate": 0.4,
+        "rate_unit": "UG",
+        "amount": null
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  },
+  {
+    "po_no": "ACHIRA/26-27/67",
+    "po_date_raw": "20260804",
+    "po_date": "04-08-2026",
+    "vendor": "Tonisha Electronics",
+    "guid": "78389433-1b86-42de-bf30-a357884c54ea-000064c0",
+    "narration": "Quantity of goods ordered against CPR/RD/SL#1107: request by Komal on 27/07/26, approved by DD on 03/08/26",
+    "items": [
+      {
+        "sl_no": 1,
+        "description": "Article of Plastic - PC 23(D.No.mm 2) 5mm",
+        "quantity": 40000.0,
+        "unit": "Nos",
+        "rate": 1.5,
+        "rate_unit": "Nos",
+        "amount": 60000.0
+      }
+    ],
+    "is_cancelled": false,
+    "is_optional": false
+  }
+]

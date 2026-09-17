@@ -117,6 +117,16 @@ verified directly.
   column), and its GRN-number prefix suggestions are derived from that
   tab's own history, not a global hardcoded list — a prefix belongs to
   whichever tab has actually used it.
+- **Tax can be specified per item, or once for the whole GRN, never both.**
+  "Tax Application" defaults to `Per Item` (existing behavior — each item's
+  GST/CGST/SGST/IGST is entered on its own card, and is optional: a valid
+  item can have GST alone, CGST+SGST, IGST alone, or no tax at all). If
+  "Overall tax for this GRN" is selected instead, every item's own tax
+  fields must be blank/zero (`grnCreate` rejects the submission otherwise,
+  to prevent double taxation) and one combined GST-alone/CGST+SGST/
+  IGST-alone tax is entered once, resolved against the sum of every item's
+  own taxable amount (basic amount minus discount) in that submission —
+  see `DATA_MODEL.md` → "GRN-level Overall Tax."
 
 ## 6. GRN Verification (`grn-verify.html` → `grnVerifyApprove`)
 
