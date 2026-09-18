@@ -184,6 +184,16 @@ function row(label, value) {
   return '<div class="row"><span class="label">' + label + '</span><span class="value">' + (value || '\u2014') + '</span></div>';
 }
 
+// Same currency->symbol mapping as grn-entry.html/grn-search.html \u2014
+// display only, never a conversion. A blank/missing currency (shouldn't
+// happen once the backend defaults legacy rows to 'INR') falls back to
+// INR's symbol.
+function currencySymbol(code) {
+  if (code === 'USD') return '$';
+  if (code === 'EUR') return '\u20ac';
+  return '\u20b9';
+}
+
 let currentItems = [];
 
 async function loadDetails() {
@@ -232,7 +242,7 @@ async function loadDetails() {
           '</div>' +
           row('Material', g.materialDescription) +
           row('Quantity', g.quantity) +
-          row('Invoice Amount', g.invoiceAmount);
+          row('Invoice Amount', g.invoiceAmount != null && g.invoiceAmount !== '' ? currencySymbol(g.currency) + g.invoiceAmount : g.invoiceAmount);
       }).join('');
 
   document.getElementById('detailsCard').innerHTML =
@@ -245,6 +255,7 @@ async function loadDetails() {
     row('Invoice No.', first.invoiceNo) +
     row('Received Date', first.receivedDate) +
     row('Requested By', first.requestedBy) +
+    row('Currency', (first.currency || 'INR') + ' (' + currencySymbol(first.currency) + ')') +
     itemsHtml;
 
   document.getElementById('content').style.display = 'block';

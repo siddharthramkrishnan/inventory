@@ -533,6 +533,16 @@ async function runSearch() {
 // re-queries the server, since sorting doesn't require re-reading any
 // sheet. Also recomputes the summary totals and rebuilds
 // currentSortedResults, the exact array Export uses.
+// Same currency->symbol mapping as grn-entry.html's currencySymbol() —
+// display only, never a conversion. A result with no `currency` at all
+// (shouldn't happen once the backend always defaults legacy rows to
+// 'INR', but defended here too) falls back to INR's symbol.
+function currencySymbol(code) {
+  if (code === 'USD') return '$';
+  if (code === 'EUR') return '€';
+  return '₹';
+}
+
 function renderResults() {
   const sortKey = document.getElementById('f-sort').value;
   const sorted = lastResults.slice().sort(SORT_COMPARATORS[sortKey] || SORT_COMPARATORS['grnDate-desc']);
@@ -542,11 +552,22 @@ function renderResults() {
     sorted.length === 0 ? 'No GRNs found.' : sorted.length + (sorted.length === 1 ? ' GRN found.' : ' GRNs found.');
 
   const totalQty = sorted.reduce(function(sum, r) { return sum + (Number(r.quantity) || 0); }, 0);
-  const totalAmt = sorted.reduce(function(sum, r) { return sum + (Number(r.totalAmount) || 0); }, 0);
+  // Total Amount is summed PER CURRENCY, never mixed/converted together —
+  // a result set can legitimately span GRNs in different currencies, and
+  // ₹100 + $50 has no single meaningful sum. Each currency present gets
+  // its own subtotal, shown side by side.
+  const amountByCurrency = {};
+  sorted.forEach(function(r) {
+    const code = r.currency || 'INR';
+    amountByCurrency[code] = (amountByCurrency[code] || 0) + (Number(r.totalAmount) || 0);
+  });
+  const totalAmountHtml = Object.keys(amountByCurrency).sort().map(function(code) {
+    return currencySymbol(code) + (Math.round(amountByCurrency[code] * 100) / 100);
+  }).join(', ') || (currencySymbol('INR') + '0');
   document.getElementById('resultsSummary').innerHTML =
     '<span>Total GRNs found: <b>' + sorted.length + '</b></span>' +
     '<span>Total Quantity: <b>' + (Math.round(totalQty * 100) / 100) + '</b></span>' +
-    '<span>Total Amount: <b>₹' + (Math.round(totalAmt * 100) / 100) + '</b></span>';
+    '<span>Total Amount: <b>' + totalAmountHtml + '</b></span>';
 
   const body = document.getElementById('resultsBody');
   body.innerHTML = '';
@@ -570,7 +591,7 @@ function renderResults() {
       '<td>' + (r.quantity != null ? r.quantity : '') + '</td>' +
       '<td>' + statusBadge(r.verificationStatus) + '</td>' +
       '<td>' + (r.verifiedBy || '') + '</td>' +
-      '<td>' + (r.totalAmount != null ? r.totalAmount : '') + '</td>' +
+      '<td>' + (r.totalAmount != null ? currencySymbol(r.currency) + r.totalAmount : '') + '</td>' +
       '<td>' + (r.tabName || '') + '</td>' +
       '<td class="action-cell">' +
         '<button type="button" class="mini action-view-btn" data-tab="' + escapeAttr(r.tabName) + '" data-grn="' + escapeAttr(r.grnNo) + '">View</button>' +
@@ -660,9 +681,9 @@ function exportResultsToExcel() {
     showMsg('No results to export.', 'error');
     return;
   }
-  const headers = ['GRN Number', 'GRN Date', 'PO Number', 'Vendor', 'Material Description', 'Quantity', 'Unit', 'Verification Status', 'Verified By', 'Total Amount', 'Category'];
+  const headers = ['GRN Number', 'GRN Date', 'PO Number', 'Vendor', 'Material Description', 'Quantity', 'Unit', 'Verification Status', 'Verified By', 'Total Amount', 'Currency', 'Category'];
   const dataRows = currentSortedResults.map(function(r) {
-    return [r.grnNo, r.grnDate, r.poNo, r.vendor, r.materialDescription, r.quantity, r.unit, r.verificationStatus, r.verifiedBy, r.totalAmount, r.tabName];
+    return [r.grnNo, r.grnDate, r.poNo, r.vendor, r.materialDescription, r.quantity, r.unit, r.verificationStatus, r.verifiedBy, r.totalAmount, r.currency || 'INR', r.tabName];
   });
   const csv = [headers].concat(dataRows).map(function(rowValues) {
     return rowValues.map(csvEscape).join(',');
@@ -733,24 +754,26 @@ async function loadDetail(tabName, grnNo) {
     row('Verified By', first.verifiedBy) +
     row('Verified Date', first.verifiedDate) +
     row('Remarks', first.zohoRemarks) +
-    row('Other Charges', first.otherCharges);
+    row('Other Charges', first.otherCharges) +
+    row('Currency', (first.currency || 'INR') + ' (' + currencySymbol(first.currency) + ')');
 
   document.getElementById('copyGrnBtn').setAttribute('data-copy', first.grnNo || '');
   document.getElementById('copyPoBtn').setAttribute('data-copy', first.poNo || '');
 
   const itemsBody = document.getElementById('detailItemsBody');
   itemsBody.innerHTML = items.map(function(g) {
+    const sym = currencySymbol(g.currency);
     return '<tr>' +
       '<td style="white-space:normal">' + (g.materialDescription || '') + '</td>' +
       '<td>' + (g.quantity != null ? g.quantity : '') + '</td>' +
       '<td>' + (g.unit || '') + '</td>' +
-      '<td>' + (g.basicAmount != null ? g.basicAmount : '') + '</td>' +
-      '<td>' + (g.discount != null ? g.discount : '') + '</td>' +
-      '<td>' + (g.cgst != null ? g.cgst : '') + '</td>' +
-      '<td>' + (g.sgst != null ? g.sgst : '') + '</td>' +
-      '<td>' + (g.igst != null ? g.igst : '') + '</td>' +
-      '<td>' + (g.gst != null ? g.gst : '') + '</td>' +
-      '<td>' + (g.totalAmount != null ? g.totalAmount : '') + '</td>' +
+      '<td>' + (g.basicAmount != null ? sym + g.basicAmount : '') + '</td>' +
+      '<td>' + (g.discount != null ? sym + g.discount : '') + '</td>' +
+      '<td>' + (g.cgst != null ? sym + g.cgst : '') + '</td>' +
+      '<td>' + (g.sgst != null ? sym + g.sgst : '') + '</td>' +
+      '<td>' + (g.igst != null ? sym + g.igst : '') + '</td>' +
+      '<td>' + (g.gst != null ? sym + g.gst : '') + '</td>' +
+      '<td>' + (g.totalAmount != null ? sym + g.totalAmount : '') + '</td>' +
     '</tr>';
   }).join('');
 
@@ -797,16 +820,20 @@ function buildPrintHtml(items, tabName) {
     printRow('Verified By', first.verifiedBy) +
     printRow('Verified Date', first.verifiedDate) +
     printRow('Remarks', first.zohoRemarks) +
-    printRow('Other Charges', first.otherCharges);
+    printRow('Other Charges', first.otherCharges) +
+    printRow('Currency', (first.currency || 'INR') + ' (' + currencySymbol(first.currency) + ')');
 
   const itemHeaders = ['Material Description', 'Quantity', 'Unit', 'Basic Amount', 'Discount', 'CGST', 'SGST', 'IGST', 'GST', 'Total Amount'];
   const itemFields = ['materialDescription', 'quantity', 'unit', 'basicAmount', 'discount', 'cgst', 'sgst', 'igst', 'gst', 'totalAmount'];
+  const itemMonetaryFields = ['basicAmount', 'discount', 'cgst', 'sgst', 'igst', 'gst', 'totalAmount'];
   const itemHeaderHtml = itemHeaders.map(function(h) {
     return '<th style="text-align:left;border-bottom:1.5px solid #333;padding:5px 6px;font-size:11px;text-transform:uppercase">' + h + '</th>';
   }).join('');
   const itemRowsHtml = items.map(function(g) {
+    const sym = currencySymbol(g.currency);
     return '<tr>' + itemFields.map(function(f) {
-      return '<td style="border-bottom:1px solid #ddd;padding:5px 6px">' + (g[f] != null ? g[f] : '') + '</td>';
+      const prefix = itemMonetaryFields.indexOf(f) > -1 ? sym : '';
+      return '<td style="border-bottom:1px solid #ddd;padding:5px 6px">' + (g[f] != null ? prefix + g[f] : '') + '</td>';
     }).join('') + '</tr>';
   }).join('');
 

@@ -280,6 +280,14 @@
         <button type="button" id="addManualItemBtn" style="background:none;border:1px dashed var(--line);color:var(--accent);font-size:13px;padding:8px 12px;border-radius:8px;cursor:pointer;width:100%;margin-top:4px">+ Add another item (same GRN No., different item)</button>
       </div>
       <div class="field">
+        <label>Currency <span class="hint">Applies to the whole GRN — every amount below, no conversion</span></label>
+        <select id="f-currency">
+          <option value="INR" selected>INR — Indian Rupees (₹)</option>
+          <option value="USD">USD — US Dollar ($)</option>
+          <option value="EUR">EUR — Euro (€)</option>
+        </select>
+      </div>
+      <div class="field">
         <label>Invoice Amount <span class="hint">One total for the whole GRN, from the vendor's invoice</span></label>
         <input type="text" id="f-invoice-amount" placeholder="e.g. 4500.00">
       </div>
@@ -373,6 +381,22 @@ function jsonp(action, params) {
   });
 }
 
+// Currency is a single, GRN-LEVEL selection (see the "Currency" field
+// above f-invoice-amount) -- applies to every amount in this submission,
+// never per-item, so these two helpers are the only place currency
+// symbols/codes are resolved anywhere on this page. No conversion is
+// performed anywhere: this only changes which symbol is DISPLAYED and
+// which 3-letter code is SENT alongside the already-typed numbers.
+function getSelectedCurrency() {
+  const el = document.getElementById('f-currency');
+  return (el && el.value) || 'INR';
+}
+function currencySymbol(code) {
+  if (code === 'USD') return '$';
+  if (code === 'EUR') return '€';
+  return '₹';
+}
+
 function showMsg(text, type) {
   const el = document.getElementById('msg');
   el.textContent = text;
@@ -401,11 +425,33 @@ async function loadTabs() {
   }
 }
 
+// Name-suggestion inputs sharing the employeeList datalist — same three
+// fields loadEmployees() below populates suggestions for.
+const NAME_SUGGESTION_INPUT_IDS = ['f-requested-by', 'f-received-by', 'f-issued-to'];
+const NAME_SUGGESTION_DEFAULT_PLACEHOLDER = 'Start typing a name…';
+
+// The 'employees' request can take several seconds (a real Sheets read,
+// no caching, on a request this page fires only once per load) —
+// without this, a person who starts typing before it resolves sees an
+// empty datalist and reasonably concludes autocomplete is broken, when
+// it's actually just not finished loading yet. Placeholder-only — never
+// disables the field, so manual typing always still works immediately,
+// suggestions or not.
+function setNameSuggestionsLoading(isLoading) {
+  NAME_SUGGESTION_INPUT_IDS.forEach(function(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.placeholder = isLoading ? 'Loading name suggestions… (you can still type)' : NAME_SUGGESTION_DEFAULT_PLACEHOLDER;
+  });
+}
+
 // Load employee names for the Issued To / Received By / Requested By /
 // Zoho Entry By suggestions — same shared list used by the Inventory
 // Adjustment app.
 async function loadEmployees() {
+  setNameSuggestionsLoading(true);
   const result = await jsonp('employees', {});
+  setNameSuggestionsLoading(false);
   if (result && result.status === 'success' && Array.isArray(result.employees)) {
     const datalist = document.getElementById('employeeList');
     datalist.innerHTML = '';
@@ -543,7 +589,7 @@ function taxFieldHtml(ids, key, label) {
         '<input type="text" class="grn-financial-input" data-group="' + ids.group + '" id="' + valueId + '" value="0" placeholder="e.g. 9 or 90" style="flex:1;min-width:0;padding:6px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px">' +
         '<select class="grn-financial-mode" data-group="' + ids.group + '" id="' + modeId + '" style="flex:0 0 56px;padding:6px 2px;font-size:12.5px;border:1px solid var(--line);border-radius:6px;background:#fff">' +
           '<option value="%">%</option>' +
-          '<option value="amount">₹</option>' +
+          '<option value="amount" class="currency-amount-option">' + currencySymbol(getSelectedCurrency()) + '</option>' +
         '</select>' +
       '</div>' +
     '</div>'
@@ -1058,10 +1104,11 @@ function recalcOverallTaxSummary() {
     summaryEl.textContent = '';
     return;
   }
+  const sym = currencySymbol(getSelectedCurrency());
   summaryEl.textContent =
-    'Taxable Amount (all items): ₹' + taxableBase.toFixed(2) +
-    '   +   Tax: ₹' + result.totalTax.toFixed(2) +
-    '   =   Final Amount: ₹' + result.finalAmount.toFixed(2);
+    'Taxable Amount (all items): ' + sym + taxableBase.toFixed(2) +
+    '   +   Tax: ' + sym + result.totalTax.toFixed(2) +
+    '   =   Final Amount: ' + sym + result.finalAmount.toFixed(2);
 }
 
 // Overall Tax section's own inputs use the same taxFieldHtml() markup
@@ -1117,6 +1164,20 @@ document.getElementById('f-tax-app-overall').addEventListener('change', function
     });
   });
   applyTaxApplicationMode();
+});
+
+// Currency is picked once, at the top of the form, but item blocks (with
+// their own %/Amount mode selectors) can already exist by the time it's
+// changed (or changed again) -- refresh every already-rendered symbol in
+// place, and the Overall Tax summary line, rather than only affecting
+// blocks rendered AFTER the change. This never touches any typed number
+// or re-runs any calculation -- purely a display refresh.
+document.getElementById('f-currency').addEventListener('change', function() {
+  const sym = currencySymbol(getSelectedCurrency());
+  document.querySelectorAll('.currency-amount-option').forEach(function(opt) {
+    opt.textContent = sym;
+  });
+  recalcOverallTaxSummary();
 });
 
 async function loadActivePOs() {
@@ -1574,6 +1635,9 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     // row's own Invoice Amount column, which is exactly what happens here.
     invoiceAmount: document.getElementById('f-invoice-amount').value.trim(),
     otherCharges: document.getElementById('f-other-charges').value.trim(),
+    // GRN-level, applies to every amount in this submission -- see
+    // getSelectedCurrency() above. No conversion: $100 stays USD 100.
+    currency: getSelectedCurrency(),
   };
 
   // "Tax Application" — same GRN-level treatment as Invoice Amount/Other
