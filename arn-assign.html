@@ -483,6 +483,11 @@
         <option value="">Select department above first…</option>
       </select>
 
+      <label class="req">Approver <span style="font-weight:400;text-transform:none;color:var(--muted)">(gets a Slack DM to approve this)</span></label>
+      <select id="f-approver">
+        <option value="">Select…</option>
+      </select>
+
       <label>Procurement Request No. <span style="font-weight:400;text-transform:none;color:var(--muted)">(optional — from the Company Procurement Request sheet)</span></label>
       <div style="display:flex; gap:8px;">
         <select id="f-req-tab" style="flex:1; width:auto;">
@@ -823,6 +828,18 @@ document.getElementById("f-unit").addEventListener("change", () => {
     everyone.map(n => `<option value="${n}">${n}</option>`).join("");
 })();
 
+// Approver can be anyone in the company, same as "Paid By" above — the
+// approver isn't necessarily in the requester's own department. Their
+// name is resolved to a Slack DM server-side via the "Slack-user IDs"
+// tab (getSlackUserId()); picking from this list (rather than free text)
+// is what keeps that name-to-Slack-ID match reliable.
+(function populateApprover() {
+  const sel = document.getElementById("f-approver");
+  const everyone = [...new Set([...EMPLOYEES.RD, ...EMPLOYEES.MF, ...EMPLOYEES.EN, ...EMPLOYEES.GN])].sort();
+  sel.innerHTML = `<option value="">Select…</option>` +
+    everyone.map(n => `<option value="${n}">${n}</option>`).join("");
+})();
+
 document.getElementById("f-personal-purchase").addEventListener("change", () => {
   const isPersonal = document.getElementById("f-personal-purchase").checked;
   const grnInput = document.getElementById("f-grn");
@@ -1004,12 +1021,13 @@ document.getElementById("btn-submit").addEventListener("click", () => {
   const qty = document.getElementById("f-qty").value.trim();
   const location = document.getElementById("f-location").value.trim();
   const requester = document.getElementById("f-requester").value;
+  const approver = document.getElementById("f-approver").value;
   const subcatVal = document.getElementById("f-subcat").value; // "RD-CH" etc
   const notes = document.getElementById("f-notes").value.trim();
   const statusEl = document.getElementById("assign-status");
 
-  if (!material || (!isPersonalPurchase && !grn) || !requester || !subcatVal) {
-    statusEl.innerHTML = `<div class="status-msg err">Please fill in Material Name, GRN No. (or check "personal purchase"), Requested By, and Sub-Category.</div>`;
+  if (!material || (!isPersonalPurchase && !grn) || !requester || !subcatVal || !approver) {
+    statusEl.innerHTML = `<div class="status-msg err">Please fill in Material Name, GRN No. (or check "personal purchase"), Requested By, Approver, and Sub-Category.</div>`;
     return;
   }
   if (isPersonalPurchase && (!personalVendor || !personalAmount || !personalPaidBy)) {
@@ -1058,6 +1076,7 @@ document.getElementById("btn-submit").addEventListener("click", () => {
     dept, subcat,
     orderingDept: document.getElementById("f-dept").value,
     requestedBy: requester,
+    approver,
     submittedAt: new Date().toISOString(),
   };
 
@@ -1085,8 +1104,8 @@ document.getElementById("btn-submit").addEventListener("click", () => {
       const prnNote = result.grnStatus === "Provisional"
         ? ` Provisional reference: <strong>${result.grn}</strong> — write this on the item, and on this purchase's row in the Procurement Request sheet.`
         : "";
-      statusEl.innerHTML = `<div class="status-msg ok">Submitted — waiting for ${requester} to verify.${prnNote}</div>`;
-      recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester, grn: result.grn });
+      statusEl.innerHTML = `<div class="status-msg ok">Submitted — ${approver} has been notified on Slack to approve it.${prnNote}</div>`;
+      recentSubmissions.unshift({ material, code: `ACH-${dept}-${subcat}-????`, requester, approver, grn: result.grn });
       renderRecent();
       ["f-material","f-brand","f-grn","f-qty","f-notes","f-location","f-unit-other","f-personal-vendor","f-personal-amount","f-personal-bill","f-personal-paidby","f-req-tab","f-req-no"].forEach(id => document.getElementById(id).value = "");
       document.getElementById("f-unit").value = "";

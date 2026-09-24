@@ -670,6 +670,19 @@ function csvEscape(value) {
   return s;
 }
 
+// Turns a GRN No. (e.g. "GR/DD/1075") into something safe to use as a
+// filename or document title on Windows/macOS — strips characters that
+// are invalid in filenames on at least one of those OSes, without
+// touching the GRN No. as displayed/stored anywhere else. Returns '' for
+// a blank/whitespace-only/all-invalid-characters input so callers can
+// fall back to their existing generic name.
+function sanitizeFilename(name) {
+  return String(name == null ? '' : name)
+    .replace(/[\/\\:*?"<>|]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .trim();
+}
+
 // Exports exactly currentSortedResults — i.e. exactly what's currently
 // on screen, in its current sort order, after whatever filters produced
 // it. A plain UTF-8 CSV (with a BOM so Excel reads special characters
@@ -693,7 +706,16 @@ function exportResultsToExcel() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'grn-search-results-' + Date.now() + '.csv';
+  // A single result has one unambiguous GRN No. to name the file after;
+  // a multi-row export covers more than one GRN, so it keeps the
+  // existing generic timestamped name. A blank/unsanitizable GRN No.
+  // also falls back to the generic name.
+  let filename = 'grn-search-results-' + Date.now() + '.csv';
+  if (currentSortedResults.length === 1) {
+    const sanitized = sanitizeFilename(currentSortedResults[0].grnNo);
+    if (sanitized) filename = sanitized + '.csv';
+  }
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -854,6 +876,22 @@ async function printGrnDetails(tabName, grnNo) {
     return;
   }
   document.getElementById('printArea').innerHTML = buildPrintHtml(items, tabName);
+
+  // Chrome/Edge's "Save as PDF" print target defaults the suggested
+  // filename to document.title — swapping it to the sanitized GRN No.
+  // just for the print gives the downloaded PDF a GRN-based name without
+  // touching the page's real title anywhere else in the UI. Falls back
+  // to leaving the title untouched when the GRN No. is blank/unsanitizable.
+  const originalTitle = document.title;
+  const sanitizedGrn = sanitizeFilename(grnNo);
+  if (sanitizedGrn) {
+    document.title = sanitizedGrn;
+    const restoreTitle = function() {
+      document.title = originalTitle;
+      window.removeEventListener('afterprint', restoreTitle);
+    };
+    window.addEventListener('afterprint', restoreTitle);
+  }
   window.print();
 }
 
