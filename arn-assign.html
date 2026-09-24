@@ -1186,10 +1186,17 @@ document.getElementById("btn-submit").addEventListener("click", () => {
       document.getElementById("suggest-box").className = "suggest-box empty";
       document.getElementById("suggest-box").innerHTML = "Start typing the material name — a suggested category will appear here.";
     })
-    .catch(() => {
+    .catch((err) => {
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit for Approval";
-      statusEl.innerHTML = `<div class="status-msg err">Couldn't submit — check your connection and try again.</div>`;
+      // A timeout / dropped connection does NOT mean nothing was saved: the
+      // server may have finished after the browser stopped waiting. Never
+      // retry automatically and don't tell the person it "failed" — tell
+      // them the status is unknown and to check before submitting again.
+      const cause = err && err.message === "timeout"
+        ? "The server didn't respond in time"
+        : "The connection dropped before a response arrived";
+      statusEl.innerHTML = `<div class="status-msg err"><strong>Submission status unknown.</strong> ${cause}, but the item may already have been saved. Please check the Approve tab (or ask the approver) before submitting it again, to avoid a duplicate.</div>`;
     });
 });
 
@@ -1377,10 +1384,15 @@ function assignViaJsonp(payload) {
   return new Promise((resolve, reject) => {
     const cb = "arnAssignCallback" + (jsonpCounter++);
     const script = document.createElement("script");
+    // 30s, not the 10s the lightweight lookups use: arnAssign() verifies the
+    // GRN, scans for duplicates, writes the row and sends the Slack DM, which
+    // can legitimately run longer than 10s. Apps Script keeps running after
+    // the browser gives up, so a too-short timeout reports a failure for a
+    // submission that may have actually been saved.
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error("timeout"));
-    }, 10000);
+    }, 30000);
 
     function cleanup() {
       clearTimeout(timeout);
