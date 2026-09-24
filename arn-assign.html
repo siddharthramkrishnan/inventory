@@ -492,11 +492,6 @@
       <div style="display:flex; gap:8px;">
         <select id="f-req-tab" style="flex:1; width:auto;">
           <option value="">Tab…</option>
-          <option value="Common">Common</option>
-          <option value="R&D">R &amp; D</option>
-          <option value="Platform">Platform</option>
-          <option value="MFG">MFG</option>
-          <option value="Admin">Admin</option>
         </select>
         <input type="number" id="f-req-no" min="1" placeholder="e.g. 1102" style="flex:1; width:auto;">
       </div>
@@ -830,15 +825,84 @@ document.getElementById("f-unit").addEventListener("change", () => {
 
 // Approver can be anyone in the company, same as "Paid By" above — the
 // approver isn't necessarily in the requester's own department. Their
-// name is resolved to a Slack DM server-side via the "Slack-user IDs"
-// tab (getSlackUserId()); picking from this list (rather than free text)
-// is what keeps that name-to-Slack-ID match reliable.
-(function populateApprover() {
+// name is resolved to a Slack DM server-side via getSlackUserId(), which
+// does an EXACT string match against the "Slack-user IDs" tab — so this
+// list must come from that SAME source, not a separately hand-maintained
+// one, or a name that looks right here can still silently fail to
+// resolve there (e.g. an abbreviated/differently-cased local copy).
+// Loaded the same way grn-entry.html's/grn-verify.html's loadEmployees()
+// already load the 'employees' action (which itself prefers the
+// Slack-user IDs tab's own names — see getEmployeeList() in Code.gs) —
+// just via this file's own existing hand-rolled JSONP pattern (no shared
+// jsonp() helper exists in this file) instead of that pattern.
+function loadApprovers() {
   const sel = document.getElementById("f-approver");
-  const everyone = [...new Set([...EMPLOYEES.RD, ...EMPLOYEES.MF, ...EMPLOYEES.EN, ...EMPLOYEES.GN])].sort();
-  sel.innerHTML = `<option value="">Select…</option>` +
-    everyone.map(n => `<option value="${n}">${n}</option>`).join("");
-})();
+  sel.innerHTML = `<option value="">Loading…</option>`;
+
+  const cb = "arnEmployeesCallback_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+  const script = document.createElement("script");
+  const timeout = setTimeout(() => { cleanup(); showLoadError(); }, 10000);
+
+  function cleanup() {
+    clearTimeout(timeout);
+    delete window[cb];
+    script.remove();
+  }
+  function showLoadError() {
+    sel.innerHTML = `<option value="">Couldn't load — try reloading</option>`;
+  }
+  window[cb] = (data) => {
+    cleanup();
+    if (data && data.status === "success" && Array.isArray(data.employees) && data.employees.length) {
+      const names = [...data.employees].sort();
+      sel.innerHTML = `<option value="">Select…</option>` +
+        names.map(n => `<option value="${n}">${n}</option>`).join("");
+    } else {
+      showLoadError();
+    }
+  };
+  script.onerror = () => { cleanup(); showLoadError(); };
+  const params = new URLSearchParams({ action: "employees", callback: cb });
+  script.src = `${CONFIG.WEBAPP_URL}?${params.toString()}`;
+  document.body.appendChild(script);
+}
+loadApprovers();
+
+// Procurement Request No. "Tab" — must show the SAME GRN Category/Tab
+// options as GRN Entry's own Tab dropdown (loadTabs() in grn-entry.html),
+// sourced from the same existing 'grntabs' backend action
+// (getGrnCategoryTabs() in Code.gs) — never a separate hardcoded list.
+function loadRequestTabs() {
+  const sel = document.getElementById("f-req-tab");
+  sel.innerHTML = `<option value="">Loading…</option>`;
+
+  const cb = "arnGrnTabsCallback_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+  const script = document.createElement("script");
+  const timeout = setTimeout(() => { cleanup(); showLoadError(); }, 10000);
+
+  function cleanup() {
+    clearTimeout(timeout);
+    delete window[cb];
+    script.remove();
+  }
+  function showLoadError() {
+    sel.innerHTML = `<option value="">Couldn't load — try reloading</option>`;
+  }
+  window[cb] = (data) => {
+    cleanup();
+    if (data && data.status === "success" && Array.isArray(data.tabs) && data.tabs.length) {
+      sel.innerHTML = `<option value="">Tab…</option>` +
+        data.tabs.map(t => `<option value="${t}">${t}</option>`).join("");
+    } else {
+      showLoadError();
+    }
+  };
+  script.onerror = () => { cleanup(); showLoadError(); };
+  const params = new URLSearchParams({ action: "grntabs", callback: cb });
+  script.src = `${CONFIG.WEBAPP_URL}?${params.toString()}`;
+  document.body.appendChild(script);
+}
+loadRequestTabs();
 
 document.getElementById("f-personal-purchase").addEventListener("change", () => {
   const isPersonal = document.getElementById("f-personal-purchase").checked;
