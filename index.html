@@ -416,8 +416,7 @@
             <label class="label">Issued To <span class="req">*</span>
               <span class="hint" id="restockHint">Who this stock is for</span>
             </label>
-            <input type="text" id="restockIssuedTo" list="employeeList" placeholder="e.g. Sudarshan Hegde — start typing to see suggestions">
-            <datalist id="employeeList"></datalist>
+            <input type="text" id="restockIssuedTo" placeholder="e.g. Sudarshan Hegde — start typing to see suggestions">
           </div>
           <div class="field" style="margin-bottom:0">
             <label class="label">Expiry Date <span class="req">*</span>
@@ -527,6 +526,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="people-picker.js"></script>
 <script>
 let ITEMS = [];
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec';
@@ -643,35 +643,14 @@ function loadItems() {
   };
   document.body.appendChild(script);
 }
-// Fetches the employee list to populate the "Issued To" suggestions on
-// restock entries. Uses a <datalist>, so it's a suggestion the store manager
-// can still overwrite freely — never a locked dropdown.
-function loadEmployees() {
-  const callbackName = 'employeeListCallback_' + Date.now();
-  window[callbackName] = function(result) {
-    delete window[callbackName];
-    document.body.removeChild(script);
-    if (result && result.status === 'success' && Array.isArray(result.employees)) {
-      const datalist = document.getElementById('employeeList');
-      datalist.innerHTML = '';
-      result.employees.forEach(function(name) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        datalist.appendChild(opt);
-      });
-    }
-  };
-
-  const script = document.createElement('script');
-  script.src = APPS_SCRIPT_URL + '?action=employees&callback=' + callbackName;
-  script.onerror = function() {
-    delete window[callbackName];
-    if (document.body.contains(script)) document.body.removeChild(script);
-    // Fail quietly — the field still works as a plain text input.
-  };
-  document.body.appendChild(script);
-}
-loadEmployees();
+// "Issued To" (Issue and Restock): type-to-search over the "Slack-user IDs" sheet through the
+// shared people-picker.js (one cached load per page, local filtering). Free text is still
+// allowed — the store manager can always overwrite or type a name that isn't on the sheet
+// (e.g. an external recipient), never a locked dropdown.
+PeoplePicker.configure(APPS_SCRIPT_URL);
+['issuedTo', 'restockIssuedTo'].forEach(function(id) {
+  PeoplePicker.attach(document.getElementById(id), { strict: false });
+});
 loadItems();
 
 searchInput.addEventListener('input', function() {

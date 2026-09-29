@@ -79,8 +79,12 @@ function extractResultBranches(searchFrom) {
   const successStartIdx = indexOfOrThrow(html, successMarker, searchFrom, 'the submit handler\'s post-submit success branch');
   const elseIdx = indexOfOrThrow(html, elseMarker, successStartIdx, 'the submit handler\'s post-submit failure ("} else {") branch');
   const handlerEndIdx = indexOfOrThrow(html, '\n});', elseIdx, 'the end of the submit handler');
+  // The success branch ends at the FIRST following `} else` of any kind --
+  // an `} else if (!result) {` (unconfirmed-outcome) branch may sit between
+  // it and the final failure branch, and is not part of the success path.
+  const successEndIdx = html.indexOf('} else', successStartIdx);
 
-  const successBody = html.slice(successStartIdx + successMarker.length, elseIdx);
+  const successBody = html.slice(successStartIdx + successMarker.length, successEndIdx);
   const failureBody = html.slice(elseIdx + elseMarker.length, handlerEndIdx);
   return { successBody, failureBody };
 }

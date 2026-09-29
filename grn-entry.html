@@ -232,7 +232,7 @@
       </div>
       <div class="field">
         <label>Requested By <span class="hint">Who originally asked for this material — this is who gets notified to verify it</span></label>
-        <input type="text" id="f-requested-by" list="employeeList" placeholder="Start typing a name…">
+        <input type="text" id="f-requested-by" placeholder="Start typing a name…">
       </div>
     </div>
 
@@ -341,20 +341,20 @@
       <p class="section-title">Handling</p>
       <div class="field">
         <label>Received By <span class="hint">Who at Achira physically received and checked this delivery</span></label>
-        <input type="text" id="f-received-by" list="employeeList" placeholder="Start typing a name…">
+        <input type="text" id="f-received-by" placeholder="Start typing a name…">
       </div>
       <div class="field">
         <label>Issued To <span class="hint">If this item is already earmarked for someone specific (optional)</span></label>
-        <input type="text" id="f-issued-to" list="employeeList" placeholder="Start typing a name…">
+        <input type="text" id="f-issued-to" placeholder="Start typing a name…">
       </div>
     </div>
 
-    <datalist id="employeeList"></datalist>
 
     <button type="submit" class="submit" id="submitBtn">Submit GRN</button>
   </form>
 </div>
 
+<script src="people-picker.js"></script>
 <script>
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec';
 
@@ -425,43 +425,13 @@ async function loadTabs() {
   }
 }
 
-// Name-suggestion inputs sharing the employeeList datalist — same three
-// fields loadEmployees() below populates suggestions for.
-const NAME_SUGGESTION_INPUT_IDS = ['f-requested-by', 'f-received-by', 'f-issued-to'];
-const NAME_SUGGESTION_DEFAULT_PLACEHOLDER = 'Start typing a name…';
-
-// The 'employees' request can take several seconds (a real Sheets read,
-// no caching, on a request this page fires only once per load) —
-// without this, a person who starts typing before it resolves sees an
-// empty datalist and reasonably concludes autocomplete is broken, when
-// it's actually just not finished loading yet. Placeholder-only — never
-// disables the field, so manual typing always still works immediately,
-// suggestions or not.
-function setNameSuggestionsLoading(isLoading) {
-  NAME_SUGGESTION_INPUT_IDS.forEach(function(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.placeholder = isLoading ? 'Loading name suggestions… (you can still type)' : NAME_SUGGESTION_DEFAULT_PLACEHOLDER;
-  });
-}
-
-// Load employee names for the Issued To / Received By / Requested By /
-// Zoho Entry By suggestions — same shared list used by the Inventory
-// Adjustment app.
-async function loadEmployees() {
-  setNameSuggestionsLoading(true);
-  const result = await jsonp('employees', {});
-  setNameSuggestionsLoading(false);
-  if (result && result.status === 'success' && Array.isArray(result.employees)) {
-    const datalist = document.getElementById('employeeList');
-    datalist.innerHTML = '';
-    result.employees.forEach(function(name) {
-      const opt = document.createElement('option');
-      opt.value = name;
-      datalist.appendChild(opt);
-    });
-  }
-}
+// Requested By / Received By / Issued To: type-to-search over the "Slack-user IDs" sheet
+// (shared people-picker.js — ONE cached load per page, local filtering). Free text is still
+// allowed, exactly like the old suggestion list: a name that isn't on the sheet can be typed.
+PeoplePicker.configure(APPS_SCRIPT_URL);
+['f-requested-by', 'f-received-by', 'f-issued-to'].forEach(function(id) {
+  PeoplePicker.attach(document.getElementById(id), { strict: false });
+});
 
 // FIX: the prefix dropdown used to be a static list shown identically
 // for every category tab, with nothing actually tying a prefix to the
@@ -551,6 +521,18 @@ let activePOItemsByCheckboxId = {};
 // never sets this on its own since those aren't user-typed 'input'/
 // 'change' events on a form field.
 let formDirty = false;
+
+// Set only when a submission's outcome could NOT be confirmed (the
+// grncreate request's response was lost — see jsonp() and the submit
+// handler below) — i.e. the backend may or may not have already saved
+// these exact items. Holds the exact JSON payload that was left
+// unconfirmed, using the submission's own existing data (nothing new is
+// invented), so a second click with the SAME items can be caught and
+// confirmed explicitly before resending, while a genuinely different
+// submission (or one made after a confirmed success/failure) proceeds
+// normally. Cleared the moment any submission gets a definite outcome.
+let unconfirmedSubmissionPayload = null;
+
 document.getElementById('grnForm').addEventListener('input', function() { formDirty = true; });
 document.getElementById('grnForm').addEventListener('change', function() { formDirty = true; });
 window.addEventListener('beforeunload', function(e) {
@@ -1529,7 +1511,6 @@ document.getElementById('manualItemsContainer').addEventListener('click', functi
 addManualItemBlock(); // always start with one block visible
 
 loadTabs();
-loadEmployees();
 loadActivePOs();
 
 // FIX: the HTML date picker (<input type="date">) always outputs
@@ -1576,13 +1557,17 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   const submitBtn = document.getElementById('submitBtn');
   // Duplicate-submission guard: a submission already in flight leaves
   // submitBtn.disabled === true for its entire duration (see every path
-  // below — a validation failure or a failed request resets it so the
-  // user can retry; a SUCCESSFUL submission deliberately leaves it
-  // disabled, see the success branch further down) — reusing that SAME
-  // flag as the re-entrancy check here means a second click, a
-  // double-click, or a second Enter-triggered submit event that slips in
-  // while one is already running (or after a successful one) is simply
-  // ignored, with no second submission mechanism introduced.
+  // below — a validation failure, or a request that gets a DEFINITE
+  // failure response, resets it so the user can retry; a SUCCESSFUL
+  // submission deliberately leaves it disabled, see the success branch
+  // further down) — reusing that SAME flag as the re-entrancy check here
+  // means a second click, a double-click, or a second Enter-triggered
+  // submit event that slips in while one is already running (or after a
+  // successful one) is simply ignored, with no second submission
+  // mechanism introduced. A request whose OUTCOME COULD NOT BE CONFIRMED
+  // (the response was lost — see jsonp()) also re-enables the button, but
+  // is caught separately just below if the exact same items are
+  // resubmitted, since the backend may already have saved them.
   if (submitBtn.disabled) return;
   submitBtn.disabled = true;
   // Immediate feedback on the very first click, before the (synchronous)
@@ -1807,6 +1792,26 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     return;
   }
 
+  const submissionPayload = JSON.stringify({ items: itemPayloads });
+
+  // The previous attempt's outcome couldn't be confirmed and this is the
+  // EXACT same submission (not a correction, not a new GRN) — the backend
+  // may have already saved it. Require an explicit, manual confirmation
+  // before sending it again; this is not an automatic retry (nothing here
+  // resubmits on its own) and never fires for a normal first submission or
+  // for a submission that actually differs from the unconfirmed one.
+  if (unconfirmedSubmissionPayload === submissionPayload) {
+    const proceed = confirm(
+      'The last submission of these exact items could not be confirmed, and it may already have been saved.\n\n' +
+      'Submit it again anyway? Check the sheet/history first if you\'re not sure.'
+    );
+    if (!proceed) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit GRN';
+      return;
+    }
+  }
+
   submitBtn.textContent = itemPayloads.length > 1 ? ('Submitting ' + itemPayloads.length + ' items…') : 'Submitting…';
 
   // FIX: ALL items in this submission are now sent in ONE grncreate call
@@ -1818,9 +1823,10 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   // Every item payload still carries the full baseData (tabName, grnNo,
   // etc.) exactly as before; the backend reads shared fields from the
   // first item only.
-  const result = await jsonp('grncreate', { data: JSON.stringify({ items: itemPayloads }) });
+  const result = await jsonp('grncreate', { data: submissionPayload });
 
   if (result && result.status === 'success') {
+    unconfirmedSubmissionPayload = null; // definite outcome — nothing left to guard against
     // ONE base Inward Entry No. per submission -- bare (e.g. "6458") for
     // a single item, or suffixed per item (e.g. "6459_1", "6459_2") for a
     // multi-item submission. Server-assigned; nothing here is guessed or
@@ -1857,16 +1863,31 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     // items…" to a distinct final confirmation state so it's visibly
     // different from "still in progress" rather than looking stuck.
     submitBtn.textContent = '✓ GRN Submitted';
-  } else {
-    // The whole submission is now all-or-nothing (validated and written
-    // as one batch) -- so there is no longer a "some items saved, some
-    // failed" partial state to report; a failure here means nothing in
-    // this submission was written. Re-enable so the user can fix the
-    // problem and retry -- unlike the success branch above, a failed
-    // submission must not leave the button permanently disabled.
+  } else if (!result) {
+    // jsonp() resolves null ONLY when the request itself never came back
+    // (script.onerror -- a dropped connection, or an intermediary closing
+    // a slow connection) -- NOT a response the backend actually sent. The
+    // Apps Script execution keeps running after the browser gives up, so
+    // this submission may already be saved. Unlike a confirmed failure
+    // below, this must never say "not submitted" -- and a resubmission of
+    // these exact same items is guarded above via unconfirmedSubmissionPayload.
+    unconfirmedSubmissionPayload = submissionPayload;
     submitBtn.disabled = false;
     submitBtn.textContent = 'Submit GRN';
-    showMsg('❌ ' + ((result && result.message) || 'Something went wrong — please check the sheet directly before retrying.'), 'error');
+    showMsg('⚠️ Submission status could not be confirmed. The record may already have been saved. Please check the relevant sheet/history before submitting again.', 'error');
+  } else {
+    // The backend itself responded with a definite failure -- confirmed
+    // nothing was written (the whole submission is all-or-nothing:
+    // validated and written as one batch, so there is no "some items
+    // saved, some failed" partial state to report here). Re-enable so
+    // the user can fix the problem and retry -- unlike the success branch
+    // above, a confirmed failure must not leave the button permanently
+    // disabled, and unlike the unconfirmed-status branch above, it needs
+    // no resubmission guard since we know for certain nothing was saved.
+    unconfirmedSubmissionPayload = null;
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit GRN';
+    showMsg('❌ ' + (result.message || 'Something went wrong — please check the sheet directly before retrying.'), 'error');
   }
 });
 </script>

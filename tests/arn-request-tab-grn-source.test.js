@@ -161,9 +161,10 @@ test('the Procurement Request No. number field (f-req-no) and its tab+number val
   assert.ok(html.indexOf('reqTab && reqNo ? `${reqTab}-${reqNo}` : ""') > -1, 'expected the existing procurementRef construction to be unchanged');
 });
 
-test('the Approver dropdown / loadApprovers() is unaffected by this change', function() {
-  assert.ok(html.indexOf('function loadApprovers()') > -1, 'expected loadApprovers() to still exist, unchanged');
-  assert.ok(html.indexOf('action: "employees"') > -1, 'expected the Approver dropdown to still use the employees action, unchanged');
+test('the Approver field is still wired to the shared, sheet-backed people picker', function() {
+  assert.ok(html.indexOf('<script src="people-picker.js"></script>') > -1, 'expected arn-assign.html to load people-picker.js');
+  assert.ok(/\[[^\]]*"f-approver"[^\]]*\]\.forEach\(id =>\s*PeoplePicker\.attach\(document\.getElementById\(id\), \{ strict: true \}\)\)/.test(html),
+    'expected f-approver to be attached to PeoplePicker in strict mode');
 });
 
 results.forEach(function(r) {

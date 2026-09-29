@@ -136,14 +136,14 @@
     <div class="card">
       <div class="field">
         <label>Your Name <span style="color:var(--red)">*</span></label>
-        <input type="text" id="f-person" list="employeeList" placeholder="Start typing your name\u2026">
-        <datalist id="employeeList"></datalist>
+        <input type="text" id="f-person" placeholder="Start typing your name\u2026">
       </div>
       <button type="button" class="approve" id="approveBtn">Approve</button>
     </div>
   </div>
 </div>
 
+<script src="people-picker.js"></script>
 <script>
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec';
 
@@ -267,17 +267,10 @@ async function loadDetails() {
   }
 }
 
-async function loadEmployees() {
-  const result = await jsonp('employees', {});
-  if (result && result.status === 'success' && Array.isArray(result.employees)) {
-    const datalist = document.getElementById('employeeList');
-    result.employees.forEach(function(name) {
-      const opt = document.createElement('option');
-      opt.value = name;
-      datalist.appendChild(opt);
-    });
-  }
-}
+// Your Name: type-to-search over the "Slack-user IDs" sheet (shared people-picker.js — one
+// cached load per page, local filtering). Free text is still allowed, as with the old list.
+PeoplePicker.configure(APPS_SCRIPT_URL);
+PeoplePicker.attach(document.getElementById('f-person'), { strict: false });
 
 document.getElementById('approveBtn').addEventListener('click', async function() {
   const person = document.getElementById('f-person').value.trim();
@@ -355,7 +348,6 @@ document.getElementById('approveBtn').addEventListener('click', async function()
 });
 
 loadDetails();
-loadEmployees();
 </script>
 </body>
 </html>

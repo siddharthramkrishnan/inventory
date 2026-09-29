@@ -1,20 +1,17 @@
 // arn-approver-employee-source.test.js
 //
-// Focused test for the ARN Approver dropdown's employee source in
-// frontend/arn-assign.html. Requirement: the dropdown must be populated
-// from the backend's existing 'employees' JSONP action / getEmployeeList()
-// (which itself prefers the "Slack-user IDs" tab's own names — see
-// Code.gs's getEmployeeList()/getSlackUserIdsTabNames()) rather than the
-// local hardcoded EMPLOYEES constant, so every name getSlackUserId() is
-// later asked to resolve is a name that source itself already produced.
+// Focused test for where the ARN Approver's names come from.
+// Requirement: the Approver field (and the other people fields on
+// arn-assign.html) must be populated from the backend's existing
+// 'employees' JSONP action / getEmployeeList() (which prefers the
+// "Slack-user IDs" tab's own names) — never a hardcoded EMPLOYEES list — so
+// every name the backend is later asked to resolve by EXACT match
+// (getSlackUserId() / getEmployeeEmail()) is a name that source produced.
 //
-// There is no frontend test framework in this repo (no package.json, no
-// jsdom/jest) and arn-assign.html's <script> is a single large block with
-// many real DOM/network dependencies. Instead, this test extracts the
-// EXACT loadApprovers() function from the live file by its known
-// surrounding text (never a hand-copied duplicate) and runs it against a
-// minimal fake document/window, simulating the JSONP response arriving —
-// so a future regression to the real source is what actually gets caught.
+// The loading now lives in the shared people-picker.js (a type-to-search
+// picker used by every page). This test runs the REAL people-picker.js in
+// Node against a minimal fake document, simulating the JSONP response, and
+// checks arn-assign.html's wiring of the Approver field to it.
 //
 // Run:
 //   cd frontend
@@ -24,182 +21,108 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 
-const ARN_ASSIGN_PATH = path.join(__dirname, '..', 'arn-assign.html');
-const html = fs.readFileSync(ARN_ASSIGN_PATH, 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'arn-assign.html'), 'utf8');
+const PICKER_PATH = path.join(__dirname, '..', 'people-picker.js');
 
-function indexOfOrThrow(haystack, marker, fromIndex, label) {
-  const idx = haystack.indexOf(marker, fromIndex || 0);
-  assert.ok(idx !== -1, 'Could not find ' + label + ' ("' + marker + '") in arn-assign.html — has it been removed or reworded?');
-  return idx;
-}
-
-// ---------------------------------------------------------------------
-// Extract loadApprovers() by its known start/end markers, as a real,
-// callable function taking (document, window, CONFIG) — everything it
-// references beyond Node's own globals (Date, Math, URLSearchParams,
-// setTimeout/clearTimeout).
-// ---------------------------------------------------------------------
-function extractLoadApprovers() {
-  const startMarker = 'function loadApprovers() {';
-  const invocationMarker = 'loadApprovers();';
-  const startIdx = indexOfOrThrow(html, startMarker, 0, 'loadApprovers()');
-  const invocationIdx = indexOfOrThrow(html, invocationMarker, startIdx, 'the end of loadApprovers() (its own immediate invocation)');
-  // Line-ending-agnostic: everything from the function's own start up to
-  // (not including) its immediate-invocation line, trimmed.
-  const source = html.slice(startIdx, invocationIdx).replace(/\s+$/, '');
-  // `loadApprovers()` itself (as written in the real source) takes no
-  // parameters — it closes over document/window/CONFIG from its
-  // surrounding scope. `build` binds a FRESH document/window/CONFIG per
-  // call (so each test gets its own isolated fakes) and returns the
-  // closed-over loadApprovers, ready to invoke with no arguments.
-  // eslint-disable-next-line no-new-func
-  const build = new Function('document', 'window', 'CONFIG', source + '\nreturn loadApprovers;');
-  return { source: source, build: build };
-}
-
-function makeFakeSelect() {
-  return { innerHTML: '' };
-}
-
-function makeFakeDocument(selectEl) {
-  const createdScripts = [];
-  return {
-    _createdScripts: createdScripts,
-    getElementById: function(id) {
-      if (id === 'f-approver') return selectEl;
-      return null;
-    },
-    createElement: function(tag) {
-      const el = { tag: tag, remove: function() {} };
-      createdScripts.push(el);
-      return el;
-    },
-    body: { appendChild: function() {} },
+// Minimal fake DOM: only what fetchPeople() touches (createElement('script'),
+// body.appendChild, parentNode.removeChild). Appended scripts are recorded
+// so the test can inspect the JSONP URL and fire the callback itself.
+function installFakeDocument() {
+  const appended = [];
+  const body = {
+    appendChild(el) { el.parentNode = body; appended.push(el); },
+    removeChild(el) { el.parentNode = null; },
   };
+  globalThis.document = {
+    body,
+    head: { appendChild() {} },
+    createElement() { return { parentNode: null }; },
+  };
+  return appended;
 }
 
-function makeFakeWindow() {
-  return {};
+function freshPicker() {
+  delete require.cache[require.resolve(PICKER_PATH)];
+  const picker = require(PICKER_PATH);
+  picker._reset();
+  return picker;
 }
 
 const results = [];
-function test(name, fn) {
-  try {
-    fn();
-    results.push({ name: name, pass: true });
-  } catch (err) {
-    results.push({ name: name, pass: false, error: err });
-  }
+async function test(name, fn) {
+  try { await fn(); results.push({ name, pass: true }); }
+  catch (error) { results.push({ name, pass: false, error }); }
 }
 
-const { source: loadApproversSource, build: buildLoadApprovers } = extractLoadApprovers();
-
-// Runs the real loadApprovers() source against a fresh, isolated
-// document/window/CONFIG for one test.
-function loadApprovers(doc, win, config) {
-  const bound = buildLoadApprovers(doc, win, config);
-  bound();
+function callbackName(src) {
+  const m = /[?&]callback=([^&]+)/.exec(src);
+  assert.ok(m, 'JSONP URL has no callback parameter: ' + src);
+  return m[1];
 }
 
-test('loadApprovers() does not reference the hardcoded EMPLOYEES list at all', function() {
-  assert.ok(loadApproversSource.indexOf('EMPLOYEES') === -1, 'expected loadApprovers() to contain no reference to EMPLOYEES, got:\n' + loadApproversSource);
-});
+(async function run() {
+  await test('arn-assign.html loads the shared people-picker.js from the site root', () => {
+    assert.ok(html.includes('<script src="people-picker.js"></script>'));
+    assert.ok(fs.existsSync(PICKER_PATH), 'people-picker.js must exist next to arn-assign.html, or the live page 404s it');
+  });
 
-test('loadApprovers() requests the existing "employees" backend action (same one grn-entry.html/grn-verify.html use)', function() {
-  const sel = makeFakeSelect();
-  const doc = makeFakeDocument(sel);
-  const win = makeFakeWindow();
-  loadApprovers(doc, win, { WEBAPP_URL: 'https://example.com/exec' });
+  await test('the Approver field is attached to PeoplePicker in strict mode (value must be an exact sheet name)', () => {
+    assert.ok(/<input type="text" id="f-approver"/.test(html), 'f-approver should be a text input driven by the picker');
+    assert.ok(/\[[^\]]*"f-approver"[^\]]*\]\.forEach\(id =>\s*PeoplePicker\.attach\(document\.getElementById\(id\), \{ strict: true \}\)\)/.test(html));
+    assert.ok(html.includes('PeoplePicker.configure(CONFIG.WEBAPP_URL);'));
+  });
 
-  assert.strictEqual(doc._createdScripts.length, 1, 'expected exactly one <script> tag created');
-  assert.ok(doc._createdScripts[0].src.indexOf('action=employees') > -1, 'expected the request URL to use action=employees, got: ' + doc._createdScripts[0].src);
-});
+  await test('arn-assign.html no longer carries a hardcoded EMPLOYEES list', () => {
+    assert.ok(!/const EMPLOYEES\s*=/.test(html));
+  });
 
-test('shows a "Loading…" placeholder immediately, before the response arrives', function() {
-  const sel = makeFakeSelect();
-  const doc = makeFakeDocument(sel);
-  loadApprovers(doc, makeFakeWindow(), { WEBAPP_URL: 'https://example.com/exec' });
-  assert.ok(sel.innerHTML.indexOf('Loading') > -1, 'expected a loading placeholder, got: ' + sel.innerHTML);
-});
+  await test('people-picker.js requests the existing "employees" backend action', async () => {
+    const appended = installFakeDocument();
+    const picker = freshPicker();
+    picker.configure('https://script.google.com/macros/s/FAKE/exec');
+    assert.strictEqual(appended.length, 1, 'expected exactly one JSONP request');
+    assert.ok(/[?&]action=employees(&|$)/.test(appended[0].src), 'expected action=employees, got ' + appended[0].src);
+    // settle the request so nothing is left pending
+    globalThis[callbackName(appended[0].src)]({ status: 'success', employees: ['A'] });
+    await picker.getPeople();
+  });
 
-test('on a successful "employees" response, populates the dropdown with EXACTLY the returned names (the shared Slack-user-IDs-backed source), not any hardcoded list', function() {
-  const sel = makeFakeSelect();
-  const doc = makeFakeDocument(sel);
-  const win = makeFakeWindow();
-  loadApprovers(doc, win, { WEBAPP_URL: 'https://example.com/exec' });
+  await test('the list is EXACTLY the names the backend returned (trimmed, de-duplicated, sorted) — nothing hardcoded added', async () => {
+    const appended = installFakeDocument();
+    const picker = freshPicker();
+    picker.configure('https://script.google.com/macros/s/FAKE/exec');
+    const sheetNames = ['Neha M Manashetty', '  Raghavendra Annacharya Katti ', 'SIDDH R', 'neha m manashetty', ''];
+    globalThis[callbackName(appended[0].src)]({ status: 'success', employees: sheetNames });
+    const people = await picker.getPeople();
+    assert.deepStrictEqual(people, ['Neha M Manashetty', 'Raghavendra Annacharya Katti', 'SIDDH R']);
+  });
 
-  const cbKey = Object.keys(win)[0];
-  assert.ok(cbKey, 'expected loadApprovers() to have registered a JSONP callback on window');
+  await test('a typed value resolves to the sheet\'s exact spelling (what the backend will receive)', () => {
+    const picker = freshPicker();
+    const names = ['Neha M Manashetty', 'Raghavendra Annacharya Katti'];
+    assert.strictEqual(picker.findExact(names, '  neha m MANASHETTY '), 'Neha M Manashetty');
+    assert.strictEqual(picker.findExact(names, 'Neha'), null, 'a partial name must not count as a valid approver');
+    assert.deepStrictEqual(picker.filterNames(names, 'kat'), ['Raghavendra Annacharya Katti']);
+  });
 
-  // Simulate the backend's real response shape: { status: 'success', employees: [...] }
-  // — these are names as getEmployeeList() would return them (Slack-user-IDs-tab-sourced),
-  // deliberately including a name that does NOT appear in the old hardcoded EMPLOYEES list,
-  // to prove the dropdown now reflects the shared source rather than that list.
-  win[cbKey]({ status: 'success', employees: ['Siddharth Ramkrishnan', 'Zeta Test Person'] });
+  await test('a failed "employees" response rejects rather than leaving an invented list', async () => {
+    const appended = installFakeDocument();
+    const picker = freshPicker();
+    picker.configure('https://script.google.com/macros/s/FAKE/exec');
+    globalThis[callbackName(appended[0].src)]({ status: 'error' });
+    await assert.rejects(picker.getPeople());
+  });
 
-  assert.ok(sel.innerHTML.indexOf('Siddharth Ramkrishnan') > -1, 'expected the exact name returned by the shared employee source to appear as an option, got:\n' + sel.innerHTML);
-  assert.ok(sel.innerHTML.indexOf('Zeta Test Person') > -1, 'expected every name from the shared source to appear as an option, got:\n' + sel.innerHTML);
-  assert.ok(sel.innerHTML.indexOf('SIDDHARTH R<') === -1 && sel.innerHTML.indexOf('SIDDHARTH R"') === -1, 'did not expect the old hardcoded EMPLOYEES-style name to appear, got:\n' + sel.innerHTML);
-});
+  await test('the Approver field is still required in the submit validation', () => {
+    assert.ok(html.includes('!requester || !subcatVal || !approver'));
+  });
 
-test('option value equals the exact name string from the response (what getSlackUserId() will receive on submit)', function() {
-  const sel = makeFakeSelect();
-  const doc = makeFakeDocument(sel);
-  const win = makeFakeWindow();
-  loadApprovers(doc, win, { WEBAPP_URL: 'https://example.com/exec' });
-  const cbKey = Object.keys(win)[0];
-  win[cbKey]({ status: 'success', employees: ['Siddharth Ramkrishnan'] });
-
-  assert.ok(sel.innerHTML.indexOf('value="Siddharth Ramkrishnan"') > -1, 'expected the option value to be the exact returned name, got:\n' + sel.innerHTML);
-});
-
-test('a failed/empty response falls back to an error option rather than throwing or silently leaving a stale list', function() {
-  const sel = makeFakeSelect();
-  const doc = makeFakeDocument(sel);
-  const win = makeFakeWindow();
-  loadApprovers(doc, win, { WEBAPP_URL: 'https://example.com/exec' });
-  const cbKey = Object.keys(win)[0];
-  win[cbKey](null);
-
-  assert.ok(sel.innerHTML.indexOf("Couldn't load") > -1, 'expected a load-error option on a failed response, got:\n' + sel.innerHTML);
-});
-
-// ---------------------------------------------------------------------
-// Sanity checks on the surrounding, UNCHANGED code — the Approver field
-// must still be required, and everything else in EMPLOYEES-based
-// dropdowns (Requested By / Paid By) must be untouched.
-// ---------------------------------------------------------------------
-test('the Approver field is still required in the submit validation', function() {
-  assert.ok(
-    html.indexOf('|| !approver') > -1,
-    'expected the submit handler\'s required-field check to still include Approver'
-  );
-});
-
-test('EMPLOYEES is still defined and still used by the UNRELATED Requested By / Paid By dropdowns', function() {
-  assert.ok(html.indexOf('const EMPLOYEES = {') > -1, 'expected the EMPLOYEES constant to still exist (used by other fields)');
-  assert.ok(html.indexOf('EMPLOYEES[dept].map') > -1, 'expected fillEmployeeDropdown() (Requested By) to still use EMPLOYEES, unchanged');
-  assert.ok(
-    /const everyone = \[\.\.\.new Set\(\[\.\.\.EMPLOYEES\.RD, \.\.\.EMPLOYEES\.MF, \.\.\.EMPLOYEES\.GN\]\)\]\.sort\(\);/.test(html),
-    'expected populatePaidBy() to still use EMPLOYEES, unchanged'
-  );
-});
-
-results.forEach(function(r) {
-  if (r.pass) {
-    console.log('  PASS - ' + r.name);
-  } else {
-    console.log('  FAIL - ' + r.name);
-    console.log('         ' + (r.error && r.error.message ? r.error.message : r.error));
-  }
-});
-const passCount = results.filter(function(r) { return r.pass; }).length;
-console.log('arn-approver-employee-source.test.js: ' + passCount + '/' + results.length + ' passed');
-
-if (passCount !== results.length) {
-  console.log('\nFAILED');
-  process.exit(1);
-} else {
-  console.log('\nPASSED');
-  process.exit(0);
-}
+  let failed = 0;
+  results.forEach((r) => {
+    if (r.pass) console.log('  PASS - ' + r.name);
+    else { failed++; console.log('  FAIL - ' + r.name + '\n         ' + (r.error && r.error.message ? r.error.message : r.error)); }
+  });
+  console.log('arn-approver-employee-source.test.js: ' + (results.length - failed) + '/' + results.length + ' passed');
+  console.log(failed ? '\nFAILED' : '\nPASSED');
+  process.exit(failed ? 1 : 0);
+})();

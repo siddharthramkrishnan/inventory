@@ -409,9 +409,7 @@
         <div class="person-wrap" id="personWrap">
           <div class="field">
             <label class="label">Your Name <span class="req">*</span></label>
-            <select id="personSelect">
-              <option value="">— Select your name —</option>
-            </select>
+            <input type="text" id="personSelect" placeholder="Start typing your name…">
           </div>
         </div>
         <button class="submit-btn" id="submitBtn" onclick="submitRequest()">
@@ -440,10 +438,14 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="people-picker.js"></script>
 <script>
 let ITEMS = [];
-const EMPLOYEES = {"Corporate / Admin":["Dhananjaya Dendukuri","Neha M Manashetty","Raghavendra Annacharya Katti","Riddhiman Ganguly","Faisal Ahmed Moinuddin","SIDDHARTH R","Priyanka M Shirali"],"Manufacturing":["HARSHINI J A","Deepika N","Christy Rosaline","Shiva Raj","Obaid Jayakumar","Kavyashree C","Anagha C","Radhika S","SEERSHA S","SHYAM KUMAR SAHU","Saurabh Yadav","Abhinav P P","Sudarshan Hegde","Lavanya S M","Kamatham Uditha","Dharshini B"],"R&D":["DIVYA PRIYA A","KAVI VARSHINI M","SAGAR Chichalappa DEVAKATE","Soumya Bhattacharya","Inchara Venugopal","KAVIPRIYA VENKATESAN","Ayushi Kaushal","Nikhil Mane","Nitin C M","Bhoomika S","Vinayaka Aaydha","Yashas Nagaraj Udupa","Rahul Gangwar","PRASAD SATISH MALVADKAR","DASARI RAJALAXMI","SANDHYA TB","Arka Roy Choudhury","Sharmila Joseph F R","Immanuel Jufel Dalmaida","JAYASHREE G","Chetan V Kurthukoti","Pratap Walankar","KOMAL NAVIN BHANUSHALI","Balaji M","Varun Preetham","SOUPARNIKA AP","Bhavna Goyal","Jatin Dhar","Krishna Jitendra Vekariya"],"Quality & Regulatory":["Prajkta Lokare","Eslavath Mahesh"]};
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec';
+// Person selector: type-to-search over the "Slack-user IDs" sheet (one cached load per page).
+// Strict — the submitted name must be one of the sheet's exact names.
+PeoplePicker.configure(APPS_SCRIPT_URL);
+PeoplePicker.attach(document.getElementById('personSelect'), { strict: true });
 
 let selectedItem = null;
 let currentPriority = null;
@@ -693,16 +695,10 @@ function setPriority(p) {
 function onDeptChange() {
   const dept = document.getElementById('deptSelect').value;
   const personWrap = document.getElementById('personWrap');
-  const personSelect = document.getElementById('personSelect');
 
   if (!dept) { personWrap.classList.remove('show'); return; }
 
-  // Keys in EMPLOYEES match dropdown values directly
-  const people = EMPLOYEES[dept] || [];
-
-  personSelect.innerHTML = '<option value="">— Select your name —</option>' +
-    people.slice().sort().map(p => '<option value="' + p + '">' + p + '</option>').join('');
-
+  // Names come from the "Slack-user IDs" sheet (people-picker.js), not a per-department list.
   personWrap.style.display = 'block';
   personWrap.classList.add('show');
 }

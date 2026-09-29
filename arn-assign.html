@@ -465,9 +465,7 @@
         </div>
 
         <label class="req">Paid By <span style="font-weight:400;text-transform:none;color:var(--muted)">(who to reimburse)</span></label>
-        <select id="f-personal-paidby">
-          <option value="">Select…</option>
-        </select>
+        <input type="text" id="f-personal-paidby" placeholder="Start typing a name…">
         <div class="hint">
           Accounts uses these details to process the reimbursement — please keep the physical bill safe.
         </div>
@@ -479,14 +477,10 @@
       </div>
 
       <label class="req">Requested By</label>
-      <select id="f-requester">
-        <option value="">Select department above first…</option>
-      </select>
+      <input type="text" id="f-requester" placeholder="Start typing a name…">
 
       <label class="req">Approver <span style="font-weight:400;text-transform:none;color:var(--muted)">(gets an email to approve this)</span></label>
-      <select id="f-approver">
-        <option value="">Select…</option>
-      </select>
+      <input type="text" id="f-approver" placeholder="Start typing a name…">
 
       <label>Procurement Request No. <span style="font-weight:400;text-transform:none;color:var(--muted)">(optional — from the Company Procurement Request sheet)</span></label>
       <div style="display:flex; gap:8px;">
@@ -523,9 +517,7 @@
       </select>
 
       <label class="req">Your Name</label>
-      <select id="a-name">
-        <option value="">Select department above first…</option>
-      </select>
+      <input type="text" id="a-name" placeholder="Start typing a name…">
 
       <button class="btn secondary" id="btn-load">Load Pending Items</button>
     </div>
@@ -536,6 +528,7 @@
 
 </div>
 
+<script src="people-picker.js"></script>
 <script>
 /* =====================================================================
    CONFIG — fill these in before deploying
@@ -544,103 +537,6 @@ const CONFIG = {
   // Same Apps Script Web App URL used by inventory.html / request.html,
   // once you've added the doGet/doPost handling from arn-backend-additions.gs
   WEBAPP_URL: "https://script.google.com/macros/s/AKfycbzmGx2oO0dMGU_v6mQPc0LSxTNAdeViQSHWQjCJUc-F_VD9TsRiWJmaabqf2d10MOsO/exec",
-};
-
-// TODO: paste your real EMPLOYEES object from request.html here so the
-// dropdowns match (54 people, 4 departments). Keys MUST match the dept
-// dropdown values exactly: "RD", "MF", "EN", "GN".
-const EMPLOYEES = {
-  RD: [
-    "Arka Roy Choudhury",
-    "Ayushi Kaushal",
-    "Balaji M",
-    "Bhavna Goyal",
-    "Bhoomika S",
-    "Chetan V Kurthukoti",
-    "DASARI RAJALAXMI",
-    "DIVYA PRIYA A",
-    "Immanuel Jufel Dalmaida",
-    "Inchara Venugopal",
-    "JAYASHREE G",
-    "Jatin Dhar",
-    "KAVI VARSHINI M",
-    "KAVIPRIYA VENKATESAN",
-    "KOMAL NAVIN BHANUSHALI",
-    "Krishna Jitendra Vekariya",
-    "Nikhil Mane",
-    "Nitin C M",
-    "PRASAD SATISH MALVADKAR",
-    "Pratap Walankar",
-    "Rahul Gangwar",
-    "SAGAR Chichalappa DEVAKATE",
-    "SANDHYA TB",
-    "SOUPARNIKA AP",
-    "Sharmila Joseph F R",
-    "Soumya Bhattacharya",
-    "Varun Preetham",
-    "Vinayaka Aaydha",
-    "Yashas Nagaraj Udupa"
-  ],
-  MF: [
-    "Abhinav P P",
-    "Anagha C",
-    "Christy Rosaline",
-    "Deepika N",
-    "Dharshini B",
-    "HARSHINI J A",
-    "Kamatham Uditha",
-    "Kavyashree C",
-    "Lavanya S M",
-    "Obaid Jayakumar",
-    "Radhika S",
-    "SEERSHA S",
-    "SHYAM KUMAR SAHU",
-    "Saurabh Yadav",
-    "Shiva Raj",
-    "Sudarshan Hegde"
-  ],
-  EN: [
-    "Arka Roy Choudhury",
-    "Ayushi Kaushal",
-    "Balaji M",
-    "Bhavna Goyal",
-    "Bhoomika S",
-    "Chetan V Kurthukoti",
-    "DASARI RAJALAXMI",
-    "DIVYA PRIYA A",
-    "Immanuel Jufel Dalmaida",
-    "Inchara Venugopal",
-    "JAYASHREE G",
-    "Jatin Dhar",
-    "KAVI VARSHINI M",
-    "KAVIPRIYA VENKATESAN",
-    "KOMAL NAVIN BHANUSHALI",
-    "Krishna Jitendra Vekariya",
-    "Nikhil Mane",
-    "Nitin C M",
-    "PRASAD SATISH MALVADKAR",
-    "Pratap Walankar",
-    "Rahul Gangwar",
-    "SAGAR Chichalappa DEVAKATE",
-    "SANDHYA TB",
-    "SOUPARNIKA AP",
-    "Sharmila Joseph F R",
-    "Soumya Bhattacharya",
-    "Varun Preetham",
-    "Vinayaka Aaydha",
-    "Yashas Nagaraj Udupa"
-  ],
-  GN: [
-    "Dhananjaya Dendukuri",
-    "Eslavath Mahesh",
-    "Faisal Ahmed Moinuddin",
-    "Neha M Manashetty",
-    "Prajkta Lokare",
-    "Priyanka M Shirali",
-    "Raghavendra Annacharya Katti",
-    "Riddhiman Ganguly",
-    "SIDDHARTH R"
-  ],
 };
 
 /* =====================================================================
@@ -791,83 +687,25 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
   });
 });
 
-function fillEmployeeDropdown(deptSelectId, nameSelectId) {
-  const dept = document.getElementById(deptSelectId).value;
-  const nameSel = document.getElementById(nameSelectId);
-  nameSel.innerHTML = "";
-  if (!dept || !EMPLOYEES[dept]) {
-    nameSel.innerHTML = `<option value="">Select department above first…</option>`;
-    return;
-  }
-  nameSel.innerHTML = `<option value="">Select…</option>` +
-    EMPLOYEES[dept].map(n => `<option value="${n}">${n}</option>`).join("");
-}
 document.getElementById("f-dept").addEventListener("change", () => {
-  fillEmployeeDropdown("f-dept", "f-requester");
   fillSubcatDropdown();
   runSuggestion();
 });
-document.getElementById("a-dept").addEventListener("change", () => fillEmployeeDropdown("a-dept", "a-name"));
 
 document.getElementById("f-unit").addEventListener("change", () => {
   const isOther = document.getElementById("f-unit").value === "other";
   document.getElementById("unit-other-wrap").style.display = isOther ? "block" : "none";
 });
 
-// "Paid By" can be anyone in the company — the person who spent their own
-// money isn't necessarily the person who requested the item.
-(function populatePaidBy() {
-  const sel = document.getElementById("f-personal-paidby");
-  const everyone = [...new Set([...EMPLOYEES.RD, ...EMPLOYEES.MF, ...EMPLOYEES.GN])].sort();
-  sel.innerHTML = `<option value="">Select…</option>` +
-    everyone.map(n => `<option value="${n}">${n}</option>`).join("");
-})();
-
-// Approver can be anyone in the company, same as "Paid By" above — the
-// approver isn't necessarily in the requester's own department. Their
-// name is resolved to an email address server-side via getEmployeeEmail(),
-// which does an EXACT string match against the "Slack-user IDs" tab (the
-// one existing per-employee directory in this codebase) — so this list
-// must come from that SAME source, not a separately hand-maintained one,
-// or a name that looks right here can still silently fail to resolve
-// there (e.g. an abbreviated/differently-cased local copy).
-// Loaded the same way grn-entry.html's/grn-verify.html's loadEmployees()
-// already load the 'employees' action (which itself prefers the
-// Slack-user IDs tab's own names — see getEmployeeList() in Code.gs) —
-// just via this file's own existing hand-rolled JSONP pattern (no shared
-// jsonp() helper exists in this file) instead of that pattern.
-function loadApprovers() {
-  const sel = document.getElementById("f-approver");
-  sel.innerHTML = `<option value="">Loading…</option>`;
-
-  const cb = "arnEmployeesCallback_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
-  const script = document.createElement("script");
-  const timeout = setTimeout(() => { cleanup(); showLoadError(); }, 10000);
-
-  function cleanup() {
-    clearTimeout(timeout);
-    delete window[cb];
-    script.remove();
-  }
-  function showLoadError() {
-    sel.innerHTML = `<option value="">Couldn't load — try reloading</option>`;
-  }
-  window[cb] = (data) => {
-    cleanup();
-    if (data && data.status === "success" && Array.isArray(data.employees) && data.employees.length) {
-      const names = [...data.employees].sort();
-      sel.innerHTML = `<option value="">Select…</option>` +
-        names.map(n => `<option value="${n}">${n}</option>`).join("");
-    } else {
-      showLoadError();
-    }
-  };
-  script.onerror = () => { cleanup(); showLoadError(); };
-  const params = new URLSearchParams({ action: "employees", callback: cb });
-  script.src = `${CONFIG.WEBAPP_URL}?${params.toString()}`;
-  document.body.appendChild(script);
-}
-loadApprovers();
+/* People fields — type-to-search, sourced from the "Slack-user IDs" sheet through
+   the shared people-picker.js (ONE cached 'employees' load per page; filtering is
+   local). Strict: the submitted value must be one of the sheet's exact names,
+   because the backend resolves a name to a Slack ID / email by exact match
+   (getSlackUserId() / getEmployeeEmail()). Anyone can be chosen for each field —
+   a Paid By / Approver / Your Name isn't necessarily in the requester's own department. */
+PeoplePicker.configure(CONFIG.WEBAPP_URL);
+["f-requester", "f-personal-paidby", "f-approver", "a-name"].forEach(id =>
+  PeoplePicker.attach(document.getElementById(id), { strict: true }));
 
 // Procurement Request No. "Tab" — must show the SAME GRN Category/Tab
 // options as GRN Entry's own Tab dropdown (loadTabs() in grn-entry.html),
