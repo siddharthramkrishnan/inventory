@@ -155,6 +155,16 @@
   }
   .status-badge.pending{ background:var(--amber-bg); color:var(--amber); }
   .status-badge.verified{ background:var(--green-bg); color:var(--green); }
+  .source-badge{
+    display:inline-block;
+    font-size:11px;
+    font-weight:700;
+    padding:3px 9px;
+    border-radius:20px;
+    white-space:nowrap;
+  }
+  .source-badge.grn{ background:#e7eefb; color:#1a4d8f; }
+  .source-badge.adjustment{ background:#f3e8fb; color:#6b2fa0; }
   .results-toolbar{
     display:flex;
     align-items:center;
@@ -336,6 +346,7 @@
       <table class="results">
         <thead>
           <tr>
+            <th>Source</th>
             <th>GRN No.</th>
             <th>GRN Date</th>
             <th>PO No.</th>
@@ -356,13 +367,14 @@
 
   <div class="card" id="detailCard" style="display:none">
     <button type="button" class="back-link" id="backBtn">&larr; Back to results</button>
-    <p class="section-title">GRN Details</p>
-    <div class="detail-actions">
+    <p class="section-title" id="detailTitle">GRN Details</p>
+    <div class="detail-actions" id="detailActions">
       <button type="button" class="secondary" id="printDetailBtn">🖨 Print</button>
       <button type="button" class="mini copy-btn" id="copyGrnBtn">Copy GRN Number</button>
       <button type="button" class="mini copy-btn" id="copyPoBtn">Copy PO Number</button>
     </div>
     <div id="detailHeader"></div>
+    <div id="detailItemsSection">
     <p class="section-title" style="margin-top:18px">Material Details</p>
     <div style="overflow-x:auto">
       <table class="items">
@@ -382,6 +394,7 @@
         </thead>
         <tbody id="detailItemsBody"></tbody>
       </table>
+    </div>
     </div>
   </div>
 </div>
@@ -427,6 +440,51 @@ function row(label, value) {
 function statusBadge(status) {
   const isVerified = status === 'Verified';
   return '<span class="status-badge ' + (isVerified ? 'verified' : 'pending') + '">' + (status || 'Pending Verification') + '</span>';
+}
+
+// Maps one search result — GRN-shaped or Adjustment-Log-shaped — to the
+// values renderResults()/exportResultsToExcel() actually display, in one
+// place, so the table and the CSV can never disagree about what an
+// Adjustment row looks like. An Adjustment Log row is NEVER dressed up as
+// a complete GRN record: fields it has no equivalent for (PO No., Vendor,
+// Verified By, Total Amount, Category) are shown as '—', not guessed.
+function getRowDisplay(r) {
+  if (r.source === 'adjustment') {
+    return {
+      sourceHtml: '<span class="source-badge adjustment">Inventory Adjustment</span>',
+      sourceLabel: 'Inventory Adjustment',
+      grnNo: r.grnNo || '',
+      grnDate: r.date || '',
+      poNo: '—',
+      vendor: '—',
+      materialDescription: '[' + (r.adjType || '') + '] ' + (r.itemName || ''),
+      quantity: r.quantity,
+      statusHtml: r.status || '—',
+      statusText: r.status || '—',
+      verifiedBy: '—',
+      amountHtml: '—',
+      amountText: '',
+      currency: '',
+      category: '—'
+    };
+  }
+  return {
+    sourceHtml: '<span class="source-badge grn">GRN Record</span>',
+    sourceLabel: 'GRN Record',
+    grnNo: r.grnNo || '',
+    grnDate: r.grnDate || '',
+    poNo: r.poNo || '',
+    vendor: r.vendor || '',
+    materialDescription: r.materialDescription || '',
+    quantity: r.quantity,
+    statusHtml: statusBadge(r.verificationStatus),
+    statusText: r.verificationStatus || '',
+    verifiedBy: r.verifiedBy || '',
+    amountHtml: r.totalAmount != null ? currencySymbol(r.currency) + r.totalAmount : '',
+    amountText: r.totalAmount != null ? r.totalAmount : '',
+    currency: r.currency || 'INR',
+    category: r.tabName || ''
+  };
 }
 
 function escapeAttr(s) {
@@ -573,30 +631,43 @@ function renderResults() {
   body.innerHTML = '';
 
   if (sorted.length === 0) {
-    body.innerHTML = '<tr><td colspan="11" style="color:var(--muted);white-space:normal">No GRNs found matching your search.</td></tr>';
+    body.innerHTML = '<tr><td colspan="12" style="color:var(--muted);white-space:normal">No GRNs found matching your search.</td></tr>';
     return;
   }
 
-  sorted.forEach(function(r) {
+  sorted.forEach(function(r, idx) {
+    const isAdj = r.source === 'adjustment';
+    const d = getRowDisplay(r);
     const tr = document.createElement('tr');
     tr.className = 'result-row';
-    tr.setAttribute('data-tab', r.tabName);
-    tr.setAttribute('data-grn', r.grnNo);
+    tr.setAttribute('data-source', isAdj ? 'adjustment' : 'grn');
+    if (isAdj) {
+      // Adjustment Log rows have no tab/GRN pair that uniquely and
+      // safely identifies "this exact result" (several rows can share a
+      // GRN No.), so they're looked up by position in currentSortedResults
+      // instead — set right after this loop finishes.
+      tr.setAttribute('data-index', String(idx));
+    } else {
+      tr.setAttribute('data-tab', r.tabName);
+      tr.setAttribute('data-grn', r.grnNo);
+    }
+    const actionsHtml = isAdj
+      ? '<button type="button" class="mini action-view-btn" data-source="adjustment" data-index="' + idx + '">View</button>'
+      : '<button type="button" class="mini action-view-btn" data-tab="' + escapeAttr(r.tabName) + '" data-grn="' + escapeAttr(r.grnNo) + '">View</button>' +
+        '<button type="button" class="mini action-print-btn" data-tab="' + escapeAttr(r.tabName) + '" data-grn="' + escapeAttr(r.grnNo) + '">Print</button>';
     tr.innerHTML =
-      '<td>' + (r.grnNo || '') + '</td>' +
-      '<td>' + (r.grnDate || '') + '</td>' +
-      '<td>' + (r.poNo || '') + '</td>' +
-      '<td>' + (r.vendor || '') + '</td>' +
-      '<td style="white-space:normal">' + (r.materialDescription || '') + '</td>' +
-      '<td>' + (r.quantity != null ? r.quantity : '') + '</td>' +
-      '<td>' + statusBadge(r.verificationStatus) + '</td>' +
-      '<td>' + (r.verifiedBy || '') + '</td>' +
-      '<td>' + (r.totalAmount != null ? currencySymbol(r.currency) + r.totalAmount : '') + '</td>' +
-      '<td>' + (r.tabName || '') + '</td>' +
-      '<td class="action-cell">' +
-        '<button type="button" class="mini action-view-btn" data-tab="' + escapeAttr(r.tabName) + '" data-grn="' + escapeAttr(r.grnNo) + '">View</button>' +
-        '<button type="button" class="mini action-print-btn" data-tab="' + escapeAttr(r.tabName) + '" data-grn="' + escapeAttr(r.grnNo) + '">Print</button>' +
-      '</td>';
+      '<td>' + d.sourceHtml + '</td>' +
+      '<td>' + (d.grnNo || '') + '</td>' +
+      '<td>' + (d.grnDate || '') + '</td>' +
+      '<td>' + (d.poNo || '') + '</td>' +
+      '<td>' + (d.vendor || '') + '</td>' +
+      '<td style="white-space:normal">' + (d.materialDescription || '') + '</td>' +
+      '<td>' + (d.quantity != null ? d.quantity : '') + '</td>' +
+      '<td>' + d.statusHtml + '</td>' +
+      '<td>' + (d.verifiedBy || '') + '</td>' +
+      '<td>' + (d.amountHtml || '') + '</td>' +
+      '<td>' + (d.category || '') + '</td>' +
+      '<td class="action-cell">' + actionsHtml + '</td>';
     body.appendChild(tr);
   });
 }
@@ -648,11 +719,19 @@ document.getElementById('resultsBody').addEventListener('click', function(e) {
   const viewBtn = e.target.closest('.action-view-btn');
   if (viewBtn) {
     e.stopPropagation();
-    loadDetail(viewBtn.getAttribute('data-tab'), viewBtn.getAttribute('data-grn'));
+    if (viewBtn.getAttribute('data-source') === 'adjustment') {
+      viewAdjustmentDetail(currentSortedResults[Number(viewBtn.getAttribute('data-index'))]);
+    } else {
+      loadDetail(viewBtn.getAttribute('data-tab'), viewBtn.getAttribute('data-grn'));
+    }
     return;
   }
   const tr = e.target.closest('tr.result-row');
   if (!tr) return;
+  if (tr.getAttribute('data-source') === 'adjustment') {
+    viewAdjustmentDetail(currentSortedResults[Number(tr.getAttribute('data-index'))]);
+    return;
+  }
   loadDetail(tr.getAttribute('data-tab'), tr.getAttribute('data-grn'));
 });
 
@@ -694,9 +773,10 @@ function exportResultsToExcel() {
     showMsg('No results to export.', 'error');
     return;
   }
-  const headers = ['GRN Number', 'GRN Date', 'PO Number', 'Vendor', 'Material Description', 'Quantity', 'Unit', 'Verification Status', 'Verified By', 'Total Amount', 'Currency', 'Category'];
+  const headers = ['Source', 'GRN Number', 'GRN Date', 'PO Number', 'Vendor', 'Material Description', 'Quantity', 'Unit', 'Verification Status', 'Verified By', 'Total Amount', 'Currency', 'Category'];
   const dataRows = currentSortedResults.map(function(r) {
-    return [r.grnNo, r.grnDate, r.poNo, r.vendor, r.materialDescription, r.quantity, r.unit, r.verificationStatus, r.verifiedBy, r.totalAmount, r.currency || 'INR', r.tabName];
+    const d = getRowDisplay(r);
+    return [d.sourceLabel, d.grnNo, d.grnDate, d.poNo, d.vendor, d.materialDescription, r.quantity, r.unit, d.statusText, d.verifiedBy, d.amountText, d.currency, d.category];
   });
   const csv = [headers].concat(dataRows).map(function(rowValues) {
     return rowValues.map(csvEscape).join(',');
@@ -743,6 +823,21 @@ async function getGrnDetailItems(tabName, grnNo) {
 let currentDetailTab = null;
 let currentDetailGrn = null;
 
+// Restores the detail card's shared chrome (title, action buttons, the
+// line-items section) to its normal GRN state. loadDetail() calls this on
+// every run so nothing viewAdjustmentDetail() changed — title text, a
+// hidden Print button, a hidden items table — leaks into the next GRN a
+// person opens. Buttons are shown/hidden in place (never removed and
+// recreated), so the click listeners already attached to them at page
+// load keep working.
+function resetDetailChromeForGrn() {
+  document.getElementById('detailTitle').textContent = 'GRN Details';
+  document.getElementById('printDetailBtn').style.display = '';
+  document.getElementById('copyGrnBtn').style.display = '';
+  document.getElementById('copyPoBtn').style.display = '';
+  document.getElementById('detailItemsSection').style.display = '';
+}
+
 async function loadDetail(tabName, grnNo) {
   showMsg('', '');
   document.getElementById('msg').className = 'msg';
@@ -760,6 +855,8 @@ async function loadDetail(tabName, grnNo) {
 
   currentDetailTab = tabName;
   currentDetailGrn = grnNo;
+
+  resetDetailChromeForGrn();
 
   const first = items[0];
 
@@ -798,6 +895,57 @@ async function loadDetail(tabName, grnNo) {
       '<td>' + (g.totalAmount != null ? sym + g.totalAmount : '') + '</td>' +
     '</tr>';
   }).join('');
+
+  document.getElementById('detailCard').style.display = 'block';
+}
+
+// Client-side-only detail view for an Inventory Adjustment result — there
+// is no server round-trip (unlike loadDetail(), the row already has
+// every field it will ever have; searchAdjustmentLogEntries() reads the
+// full row up front) and no GRN-shaped line-item table, since an
+// Adjustment Log entry is a single stock transaction, not a multi-line
+// goods receipt. Never shows a Print button: printGrnDetails()/
+// buildPrintHtml() are GRN-shaped and must not be reused for this.
+function viewAdjustmentDetail(r) {
+  if (!r) return;
+  showMsg('', '');
+  document.getElementById('msg').className = 'msg';
+  document.getElementById('resultsCard').style.display = 'none';
+
+  currentDetailTab = null;
+  currentDetailGrn = null;
+
+  document.getElementById('detailTitle').textContent = 'Inventory Adjustment Details';
+  document.getElementById('printDetailBtn').style.display = 'none';
+  document.getElementById('copyPoBtn').style.display = 'none';
+  document.getElementById('detailItemsSection').style.display = 'none';
+
+  document.getElementById('detailHeader').innerHTML =
+    '<div style="margin-bottom:10px"><span class="source-badge adjustment">Inventory Adjustment</span></div>' +
+    row('Adj ID', r.adjId) +
+    row('Date', r.date) +
+    row('Time', r.time) +
+    row('ARN', r.arn) +
+    row('Item Name', r.itemName) +
+    row('Department', r.dept) +
+    row('Unit', r.unit) +
+    row('Warehouse', r.warehouse) +
+    row('Adjustment Type', r.adjType) +
+    row('Quantity', r.quantity != null ? r.quantity : '') +
+    row('Effect', r.effect) +
+    row('GRN No.', r.grnNo) +
+    row('Reason', r.reason) +
+    row('Issued To', r.issuedTo) +
+    row('Project', r.project) +
+    row('Manager Name', r.managerName) +
+    row('Status', r.status) +
+    row('Approved By', r.approvedBy) +
+    row('Expiry Date', r.expiryDate);
+
+  // Adjustment rows do carry a GRN No. (when the transaction relates to
+  // one), so Copy GRN Number still works; there is no PO No. equivalent,
+  // which is why copyPoBtn is hidden above instead of wired to '—'.
+  document.getElementById('copyGrnBtn').setAttribute('data-copy', r.grnNo || '');
 
   document.getElementById('detailCard').style.display = 'block';
 }
