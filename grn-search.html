@@ -1002,15 +1002,44 @@ function viewAdjustmentDetail(r) {
   document.getElementById('detailCard').style.display = 'block';
 }
 
+// A label counts as a copyable identifier if it's (a case/whitespace-
+// tolerant match for) ARN, SKU, or Zoho Item ID — the only identifiers
+// this record actually has. Never invents a copy affordance for
+// anything else; matches on the label TEXT (not a fixed field name),
+// since the label IS the real header text from the sheet.
+function isCopyableMasterItemLabel(label) {
+  const key = String(label || '').trim().toLowerCase();
+  return key === 'arn' || key === 'sku' || key === 'zoho item id';
+}
+
+// Same row()-shaped markup, with a small Copy button appended for an
+// identifier field — reuses the existing .copy-btn delegated click
+// listener already bound on #detailCard (see below), so no new wiring
+// is needed here.
+function masterItemFieldRow(label, value) {
+  const copyBtn = isCopyableMasterItemLabel(label)
+    ? ' <button type="button" class="mini copy-btn" data-copy="' + escapeAttr(value) + '">Copy</button>'
+    : '';
+  return '<div class="row"><span class="label">' + label + '</span><span class="value">' + (value || '—') + copyBtn + '</span></div>';
+}
+
 // Client-side-only detail view for a Master Item List result — same
 // no-server-round-trip reasoning as viewAdjustmentDetail() above
-// (searchMasterItemEntries() already read the full row). No GRN-shaped
-// line-item table, no Print button, and NEITHER copy button: Master
-// Item List has no GRN No. or PO No. concept at all (unlike an
-// Adjustment Log row, which genuinely carries a GRN No.) — ARN is still
-// visible in the header below for anyone who wants to copy it manually.
-// Shows only fields that genuinely exist on a Master Item List record —
-// never GRN Date/Invoice/PO/GRN Vendor/Verified By, which do not apply.
+// (searchMasterItemEntries() already read the full row, including its
+// own generic r.fields list — see buildMasterItemFieldList() in
+// Code.gs/Code.js). No GRN-shaped line-item table, no Print button, and
+// NEITHER of the fixed copy buttons: Master Item List has no GRN No. or
+// PO No. concept at all (unlike an Adjustment Log row, which genuinely
+// carries a GRN No.).
+//
+// Renders EVERY {label, value} pair the backend actually found on this
+// row — using the sheet's own real header text as the label, never a
+// hardcoded field list — so a column added to Master Item List in the
+// future (before or after column P) shows up here automatically, with
+// no frontend change. A blank cell was already omitted server-side, so
+// there is nothing to filter here. This can never show a GRN-shaped
+// field (GRN No./GRN Date/PO No./Invoice No./Verified By/...) unless a
+// column with that exact header genuinely exists in the sheet.
 function viewMasterItemDetail(r) {
   if (!r) return;
   showMsg('', '');
@@ -1026,24 +1055,10 @@ function viewMasterItemDetail(r) {
   document.getElementById('copyPoBtn').style.display = 'none';
   document.getElementById('detailItemsSection').style.display = 'none';
 
+  const fields = Array.isArray(r.fields) ? r.fields : [];
   document.getElementById('detailHeader').innerHTML =
     '<div style="margin-bottom:10px"><span class="source-badge master">Master Item</span></div>' +
-    row('ARN', r.arn) +
-    row('Item Name', r.itemName) +
-    row('Zoho Item ID', r.zohoItemId) +
-    row('SKU', r.sku) +
-    row('Brand', r.brand) +
-    row('Unit', r.unit) +
-    row('Dept', r.dept) +
-    row('Sub-Category', r.subcategory) +
-    row('Zoho Category', r.zohoCategory) +
-    row('Stock On Hand', r.stockOnHand != null ? r.stockOnHand : '') +
-    row('Reorder Level', r.reorderLevel != null ? r.reorderLevel : '') +
-    row('Warehouse / Location', r.warehouse) +
-    row('Preferred Vendor', r.vendor) +
-    row('Status', r.status) +
-    row('Product Type', r.productType) +
-    row('Purchase Price', r.purchasePrice != null ? r.purchasePrice : '');
+    fields.map(function(f) { return masterItemFieldRow(f.label, f.value); }).join('');
 
   document.getElementById('detailCard').style.display = 'block';
 }
