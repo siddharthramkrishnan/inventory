@@ -165,6 +165,7 @@
   }
   .source-badge.grn{ background:#e7eefb; color:#1a4d8f; }
   .source-badge.adjustment{ background:#f3e8fb; color:#6b2fa0; }
+  .source-badge.master{ background:#e5f6ea; color:#1e6b3a; }
   .results-toolbar{
     display:flex;
     align-items:center;
@@ -442,13 +443,42 @@ function statusBadge(status) {
   return '<span class="status-badge ' + (isVerified ? 'verified' : 'pending') + '">' + (status || 'Pending Verification') + '</span>';
 }
 
-// Maps one search result — GRN-shaped or Adjustment-Log-shaped — to the
-// values renderResults()/exportResultsToExcel() actually display, in one
-// place, so the table and the CSV can never disagree about what an
-// Adjustment row looks like. An Adjustment Log row is NEVER dressed up as
-// a complete GRN record: fields it has no equivalent for (PO No., Vendor,
-// Verified By, Total Amount, Category) are shown as '—', not guessed.
+// Maps one search result — GRN-shaped, Adjustment-Log-shaped, or Master
+// Item-shaped — to the values renderResults()/exportResultsToExcel()
+// actually display, in one place, so the table and the CSV can never
+// disagree about what a row looks like. Neither an Adjustment Log row
+// nor a Master Item row is ever dressed up as a complete GRN record:
+// fields either has no equivalent for are shown as '—', never guessed.
+// Master Item List is a catalogue/master record, not a transaction — it
+// has no GRN No., PO No., Invoice No., Vendor-on-a-purchase, or
+// Verification Status of its own. Stock On Hand fills the shared
+// "Quantity" slot (a genuine quantity concept) and Purchase Price fills
+// the shared "Total Amount" slot (the closest genuine price concept,
+// shown as a plain number — Master Item has no currency field, so no
+// currency symbol is fabricated for it); Preferred Vendor and Dept fill
+// the shared Vendor/Category slots since both genuinely exist on the
+// record. See viewMasterItemDetail() for the complete field set.
 function getRowDisplay(r) {
+  if (r.source === 'master') {
+    const identity = (r.arn ? '[' + r.arn + '] ' : '') + (r.itemName || '') + (r.brand ? ' — ' + r.brand : '');
+    return {
+      sourceHtml: '<span class="source-badge master">Master Item</span>',
+      sourceLabel: 'Master Item',
+      grnNo: '—',
+      grnDate: '—',
+      poNo: '—',
+      vendor: r.vendor || '—',
+      materialDescription: identity,
+      quantity: r.stockOnHand,
+      statusHtml: r.status || '—',
+      statusText: r.status || '—',
+      verifiedBy: '—',
+      amountHtml: (r.purchasePrice != null && r.purchasePrice !== '') ? String(r.purchasePrice) : '—',
+      amountText: (r.purchasePrice != null && r.purchasePrice !== '') ? r.purchasePrice : '',
+      currency: '',
+      category: r.dept || '—'
+    };
+  }
   if (r.source === 'adjustment') {
     return {
       sourceHtml: '<span class="source-badge adjustment">Inventory Adjustment</span>',
@@ -609,6 +639,14 @@ function renderResults() {
   document.getElementById('resultsCount').textContent =
     sorted.length === 0 ? 'No GRNs found.' : sorted.length + (sorted.length === 1 ? ' GRN found.' : ' GRNs found.');
 
+  // Deliberately keyed on r.quantity/r.totalAmount (not getRowDisplay()'s
+  // d.quantity/d.amountText) — a Master Item row's Stock On Hand is a
+  // current-state snapshot and its Purchase Price is a per-unit price,
+  // neither a transacted quantity/amount, so summing them into "Total
+  // Quantity"/"Total Amount" alongside real GRN/Adjustment transactions
+  // would misrepresent the data. Master Item rows are correctly excluded
+  // from both totals below simply because they have no r.quantity/
+  // r.totalAmount field at all.
   const totalQty = sorted.reduce(function(sum, r) { return sum + (Number(r.quantity) || 0); }, 0);
   // Total Amount is summed PER CURRENCY, never mixed/converted together —
   // a result set can legitimately span GRNs in different currencies, and
@@ -636,23 +674,24 @@ function renderResults() {
   }
 
   sorted.forEach(function(r, idx) {
-    const isAdj = r.source === 'adjustment';
+    // Adjustment Log and Master Item rows have no tab/GRN pair that
+    // uniquely and safely identifies "this exact result" (several
+    // Adjustment rows can share a GRN No.; a Master Item row can have a
+    // blank ARN), so both are looked up by position in
+    // currentSortedResults instead of by tab+GRN No.
+    const isIndexBased = r.source === 'adjustment' || r.source === 'master';
     const d = getRowDisplay(r);
     const tr = document.createElement('tr');
     tr.className = 'result-row';
-    tr.setAttribute('data-source', isAdj ? 'adjustment' : 'grn');
-    if (isAdj) {
-      // Adjustment Log rows have no tab/GRN pair that uniquely and
-      // safely identifies "this exact result" (several rows can share a
-      // GRN No.), so they're looked up by position in currentSortedResults
-      // instead — set right after this loop finishes.
+    tr.setAttribute('data-source', r.source || 'grn');
+    if (isIndexBased) {
       tr.setAttribute('data-index', String(idx));
     } else {
       tr.setAttribute('data-tab', r.tabName);
       tr.setAttribute('data-grn', r.grnNo);
     }
-    const actionsHtml = isAdj
-      ? '<button type="button" class="mini action-view-btn" data-source="adjustment" data-index="' + idx + '">View</button>'
+    const actionsHtml = isIndexBased
+      ? '<button type="button" class="mini action-view-btn" data-source="' + r.source + '" data-index="' + idx + '">View</button>'
       : '<button type="button" class="mini action-view-btn" data-tab="' + escapeAttr(r.tabName) + '" data-grn="' + escapeAttr(r.grnNo) + '">View</button>' +
         '<button type="button" class="mini action-print-btn" data-tab="' + escapeAttr(r.tabName) + '" data-grn="' + escapeAttr(r.grnNo) + '">Print</button>';
     tr.innerHTML =
@@ -719,8 +758,11 @@ document.getElementById('resultsBody').addEventListener('click', function(e) {
   const viewBtn = e.target.closest('.action-view-btn');
   if (viewBtn) {
     e.stopPropagation();
-    if (viewBtn.getAttribute('data-source') === 'adjustment') {
+    const viewSource = viewBtn.getAttribute('data-source');
+    if (viewSource === 'adjustment') {
       viewAdjustmentDetail(currentSortedResults[Number(viewBtn.getAttribute('data-index'))]);
+    } else if (viewSource === 'master') {
+      viewMasterItemDetail(currentSortedResults[Number(viewBtn.getAttribute('data-index'))]);
     } else {
       loadDetail(viewBtn.getAttribute('data-tab'), viewBtn.getAttribute('data-grn'));
     }
@@ -728,8 +770,13 @@ document.getElementById('resultsBody').addEventListener('click', function(e) {
   }
   const tr = e.target.closest('tr.result-row');
   if (!tr) return;
-  if (tr.getAttribute('data-source') === 'adjustment') {
+  const trSource = tr.getAttribute('data-source');
+  if (trSource === 'adjustment') {
     viewAdjustmentDetail(currentSortedResults[Number(tr.getAttribute('data-index'))]);
+    return;
+  }
+  if (trSource === 'master') {
+    viewMasterItemDetail(currentSortedResults[Number(tr.getAttribute('data-index'))]);
     return;
   }
   loadDetail(tr.getAttribute('data-tab'), tr.getAttribute('data-grn'));
@@ -776,7 +823,11 @@ function exportResultsToExcel() {
   const headers = ['Source', 'GRN Number', 'GRN Date', 'PO Number', 'Vendor', 'Material Description', 'Quantity', 'Unit', 'Verification Status', 'Verified By', 'Total Amount', 'Currency', 'Category'];
   const dataRows = currentSortedResults.map(function(r) {
     const d = getRowDisplay(r);
-    return [d.sourceLabel, d.grnNo, d.grnDate, d.poNo, d.vendor, d.materialDescription, r.quantity, r.unit, d.statusText, d.verifiedBy, d.amountText, d.currency, d.category];
+    // d.quantity (not r.quantity) so Master Item rows correctly export
+    // Stock On Hand here — getRowDisplay() maps that source's own
+    // quantity-shaped field into d.quantity for exactly this reason;
+    // r.unit is a field name shared as-is across all three sources.
+    return [d.sourceLabel, d.grnNo, d.grnDate, d.poNo, d.vendor, d.materialDescription, d.quantity, r.unit, d.statusText, d.verifiedBy, d.amountText, d.currency, d.category];
   });
   const csv = [headers].concat(dataRows).map(function(rowValues) {
     return rowValues.map(csvEscape).join(',');
@@ -917,6 +968,7 @@ function viewAdjustmentDetail(r) {
 
   document.getElementById('detailTitle').textContent = 'Inventory Adjustment Details';
   document.getElementById('printDetailBtn').style.display = 'none';
+  document.getElementById('copyGrnBtn').style.display = ''; // may have been hidden by viewMasterItemDetail()
   document.getElementById('copyPoBtn').style.display = 'none';
   document.getElementById('detailItemsSection').style.display = 'none';
 
@@ -946,6 +998,52 @@ function viewAdjustmentDetail(r) {
   // one), so Copy GRN Number still works; there is no PO No. equivalent,
   // which is why copyPoBtn is hidden above instead of wired to '—'.
   document.getElementById('copyGrnBtn').setAttribute('data-copy', r.grnNo || '');
+
+  document.getElementById('detailCard').style.display = 'block';
+}
+
+// Client-side-only detail view for a Master Item List result — same
+// no-server-round-trip reasoning as viewAdjustmentDetail() above
+// (searchMasterItemEntries() already read the full row). No GRN-shaped
+// line-item table, no Print button, and NEITHER copy button: Master
+// Item List has no GRN No. or PO No. concept at all (unlike an
+// Adjustment Log row, which genuinely carries a GRN No.) — ARN is still
+// visible in the header below for anyone who wants to copy it manually.
+// Shows only fields that genuinely exist on a Master Item List record —
+// never GRN Date/Invoice/PO/GRN Vendor/Verified By, which do not apply.
+function viewMasterItemDetail(r) {
+  if (!r) return;
+  showMsg('', '');
+  document.getElementById('msg').className = 'msg';
+  document.getElementById('resultsCard').style.display = 'none';
+
+  currentDetailTab = null;
+  currentDetailGrn = null;
+
+  document.getElementById('detailTitle').textContent = 'Master Item Details';
+  document.getElementById('printDetailBtn').style.display = 'none';
+  document.getElementById('copyGrnBtn').style.display = 'none';
+  document.getElementById('copyPoBtn').style.display = 'none';
+  document.getElementById('detailItemsSection').style.display = 'none';
+
+  document.getElementById('detailHeader').innerHTML =
+    '<div style="margin-bottom:10px"><span class="source-badge master">Master Item</span></div>' +
+    row('ARN', r.arn) +
+    row('Item Name', r.itemName) +
+    row('Zoho Item ID', r.zohoItemId) +
+    row('SKU', r.sku) +
+    row('Brand', r.brand) +
+    row('Unit', r.unit) +
+    row('Dept', r.dept) +
+    row('Sub-Category', r.subcategory) +
+    row('Zoho Category', r.zohoCategory) +
+    row('Stock On Hand', r.stockOnHand != null ? r.stockOnHand : '') +
+    row('Reorder Level', r.reorderLevel != null ? r.reorderLevel : '') +
+    row('Warehouse / Location', r.warehouse) +
+    row('Preferred Vendor', r.vendor) +
+    row('Status', r.status) +
+    row('Product Type', r.productType) +
+    row('Purchase Price', r.purchasePrice != null ? r.purchasePrice : '');
 
   document.getElementById('detailCard').style.display = 'block';
 }
