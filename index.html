@@ -673,12 +673,21 @@ function highlightDD(items) {
   if (ddActive >= 0) items[ddActive].scrollIntoView({block:'nearest'});
 }
 
+// Searches ARN, Item Name, Zoho Item ID, SKU and Brand — ARN remains
+// the field Issue/Restock's own stock mutation is actually keyed on
+// (see appendRow() in Code.gs), this only widens what a person can type
+// to FIND that row. Each field is optional on a given item (blank
+// z/s/b just never matches, never throws).
 function search(q) {
   const ql = q.toLowerCase();
   const out = [];
   for (let i=0; i<ITEMS.length && out.length<40; i++) {
     const it = ITEMS[i];
-    if (it.a.toLowerCase().includes(ql) || it.n.toLowerCase().includes(ql)) out.push(it);
+    if (it.a.toLowerCase().includes(ql) ||
+        it.n.toLowerCase().includes(ql) ||
+        (it.z && it.z.toLowerCase().includes(ql)) ||
+        (it.s && it.s.toLowerCase().includes(ql)) ||
+        (it.b && it.b.toLowerCase().includes(ql))) out.push(it);
   }
   return out;
 }
@@ -694,7 +703,7 @@ function renderDropdown(results, q) {
         `<div class="dd-item" onclick="selectItem(${ITEMS.indexOf(it)})">
           <div class="dd-arn">${hl(it.a,ql)}</div>
           <div class="dd-name">${hl(it.n,ql)}</div>
-          <div class="dd-meta">${it.d} · ${it.u||'—'} · ${it.w||'No location'}</div>
+          <div class="dd-meta">${it.b ? hl(it.b,ql) : 'No brand'} · ${it.d} · ${it.u||'—'} · ${it.w||'No location'}</div>
         </div>`
       ).join('');
   }

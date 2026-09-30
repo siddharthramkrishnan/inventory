@@ -511,11 +511,24 @@ function smartSearch(q) {
     const n = it.n.toLowerCase();
     const a = it.a.toLowerCase();
     const w = it.w ? it.w.toLowerCase() : '';
+    // Zoho Item ID / SKU — alternate catalogue-style identifiers,
+    // scored like ARN (exact highest, substring next). Brand is scored
+    // like a descriptive substring match, same tier as the "original
+    // query somewhere in name" check below.
+    const z = it.z ? it.z.toLowerCase() : '';
+    const s = it.s ? it.s.toLowerCase() : '';
+    const b = it.b ? it.b.toLowerCase() : '';
     let score = 0;
 
     // Exact ARN match — highest priority
     if (a === ql) { score += 100; }
     else if (a.includes(ql)) { score += 60; }
+
+    // Exact/partial Zoho Item ID or SKU match
+    if (z && z === ql) { score += 100; }
+    else if (z && z.includes(ql)) { score += 60; }
+    if (s && s === ql) { score += 100; }
+    else if (s && s.includes(ql)) { score += 60; }
 
     // All terms present in name
     const allMatch = terms.every(t => n.includes(t));
@@ -536,6 +549,9 @@ function smartSearch(q) {
 
     // Original query somewhere in name
     if (n.includes(ql)) score += 25;
+
+    // Brand match
+    if (b && b.includes(ql)) score += 25;
 
     if (score > 0) scored.push({ it, score });
   }
@@ -609,7 +625,7 @@ function renderDropdown(results, q) {
         `<div class="dd-item" onclick="selectItem('${it.a}')">
           <div class="dd-arn">${hlText(it.a, ql)}</div>
           <div class="dd-name">${hlText(it.n, ql)}</div>
-          <div class="dd-meta">${it.d} · ${it.u||'—'} · ${it.w||'No location'}</div>
+          <div class="dd-meta">${it.b ? hlText(it.b, ql) : 'No brand'} · ${it.d} · ${it.u||'—'} · ${it.w||'No location'}</div>
         </div>`
       ).join('');
   }
