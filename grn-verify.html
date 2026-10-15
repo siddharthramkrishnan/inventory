@@ -231,10 +231,11 @@ function escapeAttr(s) {
 
 // Fetches every currently-pending (unverified) GRN across every category
 // tab via the dedicated 'pendingGrnList' backend action \u2014 "pending"
-// there is determined by the Verified By cell literally containing the
-// placeholder text "Pending Verification" (not a blank cell, and not
-// Verification Status text \u2014 see getPendingGrnsForVerification()'s own
-// doc comment in Code.gs/Code.js), and multi-item GRNs ("<base>",
+// there is determined by the Verification Status cell literally
+// containing the placeholder text "Pending Verification" (Verified By
+// is simply blank for these rows and is not used for this check \u2014 see
+// getPendingGrnsForVerification()'s own doc comment in Code.gs/Code.js),
+// and multi-item GRNs ("<base>",
 // "<base>_1", ...) are already grouped into one entry per base GRN No.
 // server-side, so nothing here needs to re-group or re-filter the
 // response. Shown when a notification link arrives with no (or an
