@@ -114,6 +114,25 @@
   .status-badge.pending{ background:#fdf3e2; color:#a5690c; }
   .status-badge.verified{ background:var(--green-bg); color:var(--green); }
   #loading{ padding:40px 0; text-align:center; color:var(--muted); font-size:14px; }
+  .pending-grn-item{
+    display:block;
+    width:100%;
+    text-align:left;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .pending-grn-item:hover{ border-color:var(--accent); background:#eef4f2; }
+  .pending-grn-item .pgi-top{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .pending-grn-item .pgi-grn{ font-weight:700; color:var(--accent-dark); font-family:monospace; font-size:14px; }
+  .pending-grn-item .pgi-date{ font-size:12px; color:var(--muted); white-space:nowrap; }
+  .pending-grn-item .pgi-meta{ font-size:13px; color:var(--ink); margin-top:4px; }
+  .pending-grn-item .pgi-sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+  #pendingLoading, #pendingEmpty{ padding:24px 0; text-align:center; color:var(--muted); font-size:14px; }
 </style>
 </head>
 <body>
@@ -126,6 +145,16 @@
 <div class="wrap">
   <div id="msg" class="msg"></div>
   <div id="loading">Loading GRN details\u2026</div>
+
+  <div class="card" id="pendingListCard" style="display:none">
+    <p style="margin:0 0 4px;font-weight:700;font-size:15px">Select a GRN to verify</p>
+    <p style="margin:0 0 14px;font-size:13px;color:var(--muted)">This link didn&rsquo;t include a specific GRN reference &mdash; choose one below from the pending list instead.</p>
+    <div id="pendingLoading">Loading pending GRNs&hellip;</div>
+    <div id="pendingEmpty" style="display:none">&#9989; No pending GRNs &mdash; everything is already verified.</div>
+    <div id="pendingErrorBox" class="msg error" style="display:none"></div>
+    <div id="pendingListBody"></div>
+  </div>
+
   <div id="content" style="display:none">
     <div class="hint-box">
       Please check the details below match what you ordered before approving. If anything looks wrong, contact the store manager directly rather than approving.
@@ -196,9 +225,71 @@ function currencySymbol(code) {
 
 let currentItems = [];
 
+function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+// Fetches every currently-pending (unverified) GRN across every category
+// tab via the dedicated 'pendingGrnList' backend action \u2014 "pending"
+// there is determined by the Verified By cell literally containing the
+// placeholder text "Pending Verification" (not a blank cell, and not
+// Verification Status text \u2014 see getPendingGrnsForVerification()'s own
+// doc comment in Code.gs/Code.js), and multi-item GRNs ("<base>",
+// "<base>_1", ...) are already grouped into one entry per base GRN No.
+// server-side, so nothing here needs to re-group or re-filter the
+// response. Shown when a notification link arrives with no (or an
+// incomplete) GRN reference, so the person can still find and open the
+// right GRN instead of
+// hitting a dead end.
+async function loadPendingGrnList() {
+  document.getElementById('pendingListCard').style.display = 'block';
+  document.getElementById('pendingLoading').style.display = 'block';
+  document.getElementById('pendingEmpty').style.display = 'none';
+  document.getElementById('pendingErrorBox').style.display = 'none';
+  document.getElementById('pendingListBody').innerHTML = '';
+
+  const result = await jsonp('pendingGrnList', {});
+  document.getElementById('pendingLoading').style.display = 'none';
+
+  if (!result || result.status !== 'success') {
+    document.getElementById('pendingErrorBox').textContent =
+      (result && result.message) || 'Could not load the pending GRN list \u2014 please try again, or ask the store manager for the direct link.';
+    document.getElementById('pendingErrorBox').style.display = 'block';
+    return;
+  }
+
+  const grouped = result.results || [];
+
+  if (grouped.length === 0) {
+    document.getElementById('pendingEmpty').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('pendingListBody').innerHTML = grouped.map(function(g) {
+    return '<button type="button" class="pending-grn-item" data-tab="' + escapeAttr(g.tabName) + '" data-grn="' + escapeAttr(g.grnNo) + '">' +
+      '<div class="pgi-top"><span class="pgi-grn">' + (g.grnNo || '') + '</span><span class="pgi-date">' + (g.grnDate || '') + '</span></div>' +
+      '<div class="pgi-meta">' + (g.vendor || '\u2014') + (g.poNo ? ' \u00b7 PO ' + g.poNo : '') + '</div>' +
+      '<div class="pgi-sub">' + (g.tabName || '') + (g.itemCount > 1 ? ' \u00b7 ' + g.itemCount + ' items' : '') + '</div>' +
+    '</button>';
+  }).join('');
+
+  Array.from(document.querySelectorAll('.pending-grn-item')).forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      // Reuses the EXACT same verification flow as a notification link
+      // that already includes a GRN reference \u2014 a full navigation, not
+      // an in-place fetch, so every existing permission/QC/approval rule
+      // in loadDetails()/the approve handler runs completely unchanged.
+      const tab = btn.getAttribute('data-tab');
+      const grn = btn.getAttribute('data-grn');
+      window.location.href = '?tab=' + encodeURIComponent(tab) + '&grn=' + encodeURIComponent(grn);
+    });
+  });
+}
+
 async function loadDetails() {
   if (!tabParam || !grnParam) {
-    document.getElementById('loading').textContent = 'Missing GRN reference \u2014 this link looks incomplete.';
+    document.getElementById('loading').style.display = 'none';
+    await loadPendingGrnList();
     return;
   }
 
