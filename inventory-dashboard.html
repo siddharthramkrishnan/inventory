@@ -47,6 +47,22 @@
     margin-bottom:8px;
   }
   .home-nav-link:hover{ background:rgba(255,255,255,0.28); }
+  .header-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .refresh-btn{
+    display:inline-block;
+    font-size:12px;
+    font-weight:600;
+    color:#fff;
+    background:rgba(255,255,255,0.18);
+    padding:4px 12px;
+    border-radius:20px;
+    border:none;
+    cursor:pointer;
+    margin-bottom:8px;
+  }
+  .refresh-btn:hover{ background:rgba(255,255,255,0.28); }
+  .refresh-btn:disabled{ opacity:0.6; cursor:default; }
+  .refresh-warning{ display:block; font-size:11px; color:var(--amber); margin-top:2px; font-weight:600; }
   .wrap{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   .card{
     background:var(--card);
@@ -191,9 +207,12 @@
 </head>
 <body>
 <header>
-  <a href="home.html" class="home-nav-link">← Home</a>
+  <div class="header-top">
+    <a href="home.html" class="home-nav-link">← Home</a>
+    <button type="button" class="refresh-btn" id="refreshBtn">⟳ Refresh</button>
+  </div>
   <h1>📊 Inventory Dashboard</h1>
-  <p>Achira Labs · Live view of Tally Stock &amp; Adjustment Log</p>
+  <p>Achira Labs · Live view of Master Item List &amp; Adjustment Log</p>
 </header>
 
 <div class="wrap">
@@ -228,6 +247,7 @@
         <div class="kpi-card">
           <div class="kpi-value" id="kpiLastUpdated" style="font-size:15px">—</div>
           <div class="kpi-label">Last Updated</div>
+          <span id="refreshWarning" class="refresh-warning" style="display:none"></span>
         </div>
       </div>
     </div>
@@ -253,7 +273,7 @@
         <div class="collapsible-panel" id="outOfStockPanel">
           <div style="overflow-x:auto">
             <table class="simple">
-              <thead><tr><th>MASTERID</th><th>Item</th><th>Unit</th><th>Qty</th></tr></thead>
+              <thead><tr><th>ARN</th><th>Item</th><th>Dept</th><th>Qty</th></tr></thead>
               <tbody id="outOfStockBody"></tbody>
             </table>
           </div>
@@ -265,19 +285,8 @@
       <p class="section-title">Recent Adjustments (latest 10)</p>
       <div style="overflow-x:auto">
         <table class="simple">
-          <thead><tr><th>Adj ID</th><th>Date</th><th>ARN</th><th>Item</th><th>Dept</th><th>Type</th><th>Qty</th><th>Effect</th></tr></thead>
+          <thead><tr><th>Adj ID</th><th>Date</th><th>ARN</th><th>Item</th><th>Dept</th><th>Type</th><th>Qty</th><th>Effect</th><th>GRN No.</th><th>Reason</th><th>Issued To</th><th>Status</th><th>Approved By</th></tr></thead>
           <tbody id="recentBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <p class="section-title">Recent Inward (Tally Receipts, latest 10)</p>
-      <p style="font-size:11.5px;color:var(--muted);margin:0 0 8px">Goods received, sourced directly from Tally "Receipt Note" vouchers — inward only, separate from Recent Adjustments above.</p>
-      <div style="overflow-x:auto">
-        <table class="simple">
-          <thead><tr><th>Date</th><th>Voucher No.</th><th>Item</th><th>Qty</th><th>Unit</th><th>Party</th></tr></thead>
-          <tbody id="recentInwardBody"></tbody>
         </table>
       </div>
     </div>
@@ -562,6 +571,22 @@ function renderLastUpdated(generatedAt) {
   el.textContent = isNaN(d.getTime()) ? '—' : d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+// Shown ONLY when a background/manual refresh fails AFTER at least one
+// successful load already happened — the dashboard keeps showing that
+// last-successful data untouched (nothing here ever clears it), this
+// just makes the person aware the figure on screen may now be a little
+// behind. Cleared the moment a refresh succeeds again.
+function showRefreshWarning(text) {
+  const el = document.getElementById('refreshWarning');
+  el.textContent = text;
+  el.style.display = 'block';
+}
+function clearRefreshWarning() {
+  const el = document.getElementById('refreshWarning');
+  el.textContent = '';
+  el.style.display = 'none';
+}
+
 function renderLowStock(rows) {
   const body = document.getElementById('lowStockBody');
   document.getElementById('kpiLowStock').textContent = rows.length;
@@ -589,9 +614,9 @@ function renderOutOfStock(rows) {
   }
   body.innerHTML = rows.map(function(r) {
     return '<tr>' +
-      '<td style="font-family:monospace">' + escapeHtml(r.masterId) + '</td>' +
+      '<td style="font-family:monospace">' + escapeHtml(r.arn) + '</td>' +
       '<td>' + escapeHtml(r.itemName) + '</td>' +
-      '<td>' + escapeHtml(r.baseUnit) + '</td>' +
+      '<td' + departmentTooltip(r.department) + '>' + escapeHtml(r.department) + '</td>' +
       '<td><span class="status-badge out">0</span></td>' +
     '</tr>';
   }).join('');
@@ -600,7 +625,7 @@ function renderOutOfStock(rows) {
 function renderRecent(rows) {
   const body = document.getElementById('recentBody');
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="8" class="empty-row">No adjustments logged yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="13" class="empty-row">No adjustments logged yet.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(function(r) {
@@ -614,24 +639,11 @@ function renderRecent(rows) {
       '<td>' + escapeHtml(r.adjType) + '</td>' +
       '<td>' + fmtNum(r.quantity) + '</td>' +
       '<td class="effect-tag ' + (isAdd ? 'add' : 'reduce') + '">' + (isAdd ? '+ Add' : '− Deduct') + '</td>' +
-    '</tr>';
-  }).join('');
-}
-
-function renderRecentInward(rows) {
-  const body = document.getElementById('recentInwardBody');
-  if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="6" class="empty-row">No recent Tally receipts.</td></tr>';
-    return;
-  }
-  body.innerHTML = rows.map(function(r) {
-    return '<tr>' +
-      '<td>' + escapeHtml(r.date) + '</td>' +
-      '<td style="font-family:monospace">' + escapeHtml(r.voucherNumber) + '</td>' +
-      '<td>' + escapeHtml(r.itemName) + '</td>' +
-      '<td>' + fmtNum(r.quantity) + '</td>' +
-      '<td>' + escapeHtml(r.unit) + '</td>' +
-      '<td>' + escapeHtml(r.partyLedger) + '</td>' +
+      '<td style="font-family:monospace">' + escapeHtml(r.grnNo) + '</td>' +
+      '<td>' + escapeHtml(r.reason) + '</td>' +
+      '<td>' + escapeHtml(r.issuedTo) + '</td>' +
+      '<td>' + escapeHtml(r.status) + '</td>' +
+      '<td>' + escapeHtml(r.approvedBy) + '</td>' +
     '</tr>';
   }).join('');
 }
@@ -678,33 +690,68 @@ function renderTrend(containerId, rows, labelKey) {
   }).join('');
 }
 
+// true while a request is in flight — the auto-refresh interval, the
+// visibilitychange handler, and the manual Refresh button all check
+// this before starting another one, so a slow response can never be
+// overlapped by a second concurrent fetch.
+let isRefreshing = false;
+// Becomes true the first time a response actually succeeds. Only an
+// INITIAL failure (this still false) shows the full-page error message
+// in #msg — any later failure (a background refresh) leaves whatever
+// was last successfully rendered completely untouched and instead shows
+// the small, non-alarming #refreshWarning note next to Last Updated.
+let hasLoadedOnce = false;
+
+function setRefreshBtnBusy(busy) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = busy;
+  btn.textContent = busy ? '⟳ Refreshing…' : '⟳ Refresh';
+}
+
 async function loadDashboard() {
-  const result = await jsonp('inventoryDashboard', {});
-  document.getElementById('loading').style.display = 'none';
+  if (isRefreshing) return; // never overlap a request already in flight
+  isRefreshing = true;
+  setRefreshBtnBusy(true);
+  try {
+    const result = await jsonp('inventoryDashboard', {});
+    document.getElementById('loading').style.display = 'none';
 
-  if (!result || result.status !== 'success') {
-    showMsg((result && result.message) || 'Could not load the dashboard — please try again.');
-    return;
+    if (!result || result.status !== 'success') {
+      if (hasLoadedOnce) {
+        // A real page's worth of data is already on screen — leave it
+        // exactly as it is and just flag that this particular refresh
+        // didn't go through, rather than blanking the dashboard.
+        showRefreshWarning((result && result.message) || 'Refresh failed — showing last successfully loaded data.');
+      } else {
+        showMsg((result && result.message) || 'Could not load the dashboard — please try again.');
+      }
+      return;
+    }
+
+    showMsg('');
+    clearRefreshWarning();
+    hasLoadedOnce = true;
+    document.getElementById('dashboardContent').style.display = 'block';
+    renderKpis(result.summary);
+    renderLastUpdated(result.generatedAt);
+    renderLowStock(result.lowStock || []);
+    renderOutOfStock(result.outOfStock || []);
+    renderRecent(result.recentAdjustments || []);
+    // Inventory by Department: department code only, no ambiguity.
+    renderGroupTable('deptBody', result.departmentSummary || [], 'department', departmentTooltip);
+    // Inventory by Subcategory: no department accompanies each row here
+    // (the existing, unmodified backend aggregates subcategories across
+    // every department) — subcategoryTooltip(null, code) falls through
+    // to the cross-department-unambiguous lookup rather than guessing.
+    renderGroupTable('subcatBody', result.categorySummary || [], 'subcategory', function(code) {
+      return subcategoryTooltip(null, code);
+    });
+    renderTrend('weeklyTrendBody', result.weeklyTrend || [], 'week');
+    renderTrend('monthlyTrendBody', result.monthlyTrend || [], 'month');
+  } finally {
+    isRefreshing = false;
+    setRefreshBtnBusy(false);
   }
-
-  document.getElementById('dashboardContent').style.display = 'block';
-  renderKpis(result.summary);
-  renderLastUpdated(result.generatedAt);
-  renderLowStock(result.lowStock || []);
-  renderOutOfStock(result.outOfStock || []);
-  renderRecent(result.recentAdjustments || []);
-  renderRecentInward(result.recentInwardReceipts || []);
-  // Inventory by Department: department code only, no ambiguity.
-  renderGroupTable('deptBody', result.departmentSummary || [], 'department', departmentTooltip);
-  // Inventory by Subcategory: no department accompanies each row here
-  // (the existing, unmodified backend aggregates subcategories across
-  // every department) — subcategoryTooltip(null, code) falls through
-  // to the cross-department-unambiguous lookup rather than guessing.
-  renderGroupTable('subcatBody', result.categorySummary || [], 'subcategory', function(code) {
-    return subcategoryTooltip(null, code);
-  });
-  renderTrend('weeklyTrendBody', result.weeklyTrend || [], 'week');
-  renderTrend('monthlyTrendBody', result.monthlyTrend || [], 'month');
 }
 
 // Collapsible Low Stock / Out of Stock panels — collapsed by default,
@@ -724,6 +771,25 @@ function wireCollapsible(headerId, panelId) {
 }
 wireCollapsible('lowStockToggle', 'lowStockPanel');
 wireCollapsible('outOfStockToggle', 'outOfStockPanel');
+
+document.getElementById('refreshBtn').addEventListener('click', function() { loadDashboard(); });
+
+// Auto-refresh every 60s, but only while this tab is actually visible —
+// a hidden/background tab skips the tick entirely rather than fetching
+// data nobody's looking at. loadDashboard()'s own isRefreshing guard
+// means a slow in-flight request is never joined by a second one here.
+const DASHBOARD_REFRESH_INTERVAL_MS = 60000;
+setInterval(function() {
+  if (document.visibilityState === 'visible') loadDashboard();
+}, DASHBOARD_REFRESH_INTERVAL_MS);
+
+// Revisiting this tab (switching back from another tab/app) refreshes
+// immediately, rather than waiting for the next 60s tick — the data the
+// person switched away from could already be a while old by the time
+// they come back.
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') loadDashboard();
+});
 
 loadDashboard();
 </script>
