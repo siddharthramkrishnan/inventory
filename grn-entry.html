@@ -234,6 +234,17 @@
         <label>Requested By <span class="hint">Who originally asked for this material — this is who gets notified to verify it</span></label>
         <input type="text" id="f-requested-by" placeholder="Start typing a name…">
       </div>
+      <div class="field">
+        <label>QC Required? <span class="req">*</span> <span class="hint">Whether Quality Control must inspect this delivery before it's confirmed</span></label>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer">
+            <input type="radio" name="qc-required" id="f-qc-required-yes" value="Yes" required> Yes
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer">
+            <input type="radio" name="qc-required" id="f-qc-required-no" value="No" required> No
+          </label>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -395,6 +406,23 @@ function currencySymbol(code) {
   if (code === 'USD') return '$';
   if (code === 'EUR') return '€';
   return '₹';
+}
+
+// "QC Required?" is a mandatory, GRN-level Yes/No choice (the two radio
+// inputs both carry the native `required` attribute, so the browser
+// itself blocks submission — same enforcement as the Received Date/GRN
+// Category fields above — until one is picked; neither radio is
+// pre-checked, unlike Tax Application's "Per Item" default, precisely so
+// a person can't accidentally submit without having actually chosen).
+// Returns '' if, somehow, neither is checked (defensive only — the
+// `required` attribute should always prevent this), which grnCreate()
+// on the backend rejects explicitly rather than silently defaulting.
+function getSelectedQcRequired() {
+  const yesRadio = document.getElementById('f-qc-required-yes');
+  const noRadio = document.getElementById('f-qc-required-no');
+  if (yesRadio && yesRadio.checked) return 'Yes';
+  if (noRadio && noRadio.checked) return 'No';
+  return '';
 }
 
 function showMsg(text, type) {
@@ -1578,6 +1606,24 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
   showMsg('', '');
   document.getElementById('msg').className = 'msg';
 
+  // FIX: Serial No. is fetched asynchronously (refreshSuggestions(), on
+  // f-tab/f-grn-prefix change) and nothing previously gated submission on
+  // it finishing first — a person who selects a tab and submits quickly
+  // (e.g. via PO auto-fill, which needs no typing) could click Submit
+  // before that request resolved, sending slNo: '' even though the sheet
+  // has a perfectly computable next value. grnCreate() then writes exactly
+  // what it was sent (this part was already correct — the column is found
+  // via the same colMap used everywhere else here), so a blank field in
+  // the payload becomes a blank cell in the sheet. If it's still blank
+  // right before submitting, make one more attempt so the common case
+  // (the request simply hadn't finished yet) is closed without adding any
+  // new blocking UI state; a tab that genuinely has no Serial No. column
+  // still resolves to '' here, exactly as before, so this changes nothing
+  // for that existing, legitimate case.
+  if (!document.getElementById('f-sl-no').value.trim()) {
+    await refreshSuggestions(true);
+  }
+
   const baseData = {
     tabName: document.getElementById('f-tab').value,
     slNo: document.getElementById('f-sl-no').value.trim(),
@@ -1623,6 +1669,12 @@ document.getElementById('grnForm').addEventListener('submit', async function(e) 
     // GRN-level, applies to every amount in this submission -- see
     // getSelectedCurrency() above. No conversion: $100 stays USD 100.
     currency: getSelectedCurrency(),
+    // GRN-level mandatory Yes/No choice -- see getSelectedQcRequired()
+    // above. The backend rejects the submission outright if this isn't
+    // exactly 'Yes' or 'No' (defense in depth behind the radios'
+    // `required` attribute), and uses it to decide whether the Slack
+    // notification tags QC or shows "Not Required".
+    qcRequired: getSelectedQcRequired(),
   };
 
   // "Tax Application" — same GRN-level treatment as Invoice Amount/Other
