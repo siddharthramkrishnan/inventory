@@ -211,8 +211,7 @@
           </p>
           <div class="kpi-grid" id="dc-kpi-grid"></div>
           <div class="panel" style="box-shadow:none;border:1px solid #eee;margin-top:16px;">
-            <h2>Purchase lines by source</h2>
-            <table id="dc-table"></table>
+            <h2>Direct costs by department and category</h2><div style="overflow-x:auto;"><table id="dc-table"></table></div>
           </div>
         </div>
       </div>
@@ -570,31 +569,89 @@
     return Math.max(months, 1); // completed months, excludes current partial month
   }
 
+  // Direct costs by department -> category -> ledger line (Achira Category Reference).
+  function renderDcTree(tree, cogsTotal) {
+    const table = document.getElementById('dc-table');
+    if (!tree || !tree.departments) {
+      table.innerHTML = '<tr><td style="color:#c0392b;">Category breakdown is not available yet.</td></tr>';
+      return;
+    }
+    const pct = function (v) { return cogsTotal ? (v / cogsTotal * 100).toFixed(1) + '%' : '-'; };
+    let html = '';
+    if (tree.unmappedTotal > 0) {
+      html += '<tr><td colspan="4" style="background:#fef3c7;color:#b45309;font-size:12px;padding:8px 10px;">'
+        + formatINR(tree.unmappedTotal) + ' is not mapped to a category yet. Add the ledger in the Direct Cost Mapping tab of the sheet.</td></tr>';
+    }
+    html += '<tr><th style="width:20px;"></th><th>Department / category</th><th class="num">Total (INR)</th><th class="num">% of direct costs</th></tr>';
+    tree.departments.forEach(function (d, i) {
+      const dId = 'dcd' + i;
+      html += '<tr class="dc-dept" data-id="' + dId + '" style="font-weight:600;cursor:pointer;">'
+        + '<td><span class="dc-arrow" style="color:#2a78d6;font-size:12px;">\u25B8</span></td><td>' + escHtml(d.name) + '</td>'
+        + '<td class="num">' + formatINR(d.total) + '</td><td class="num">' + pct(d.total) + '</td></tr>';
+      d.subs.forEach(function (s, j) {
+        const sId = dId + 's' + j;
+        const hasLines = s.lines.length > 0;
+        const grey = s.total ? '' : 'color:#aaa;';
+        html += '<tr class="dc-sub ' + dId + '" data-id="' + sId + '" style="display:none;' + (hasLines ? 'cursor:pointer;' : '') + grey + '"><td></td>'
+          + '<td style="padding-left:22px;">' + (hasLines ? '<span class="dc-arrow" style="color:#2a78d6;font-size:12px;">\u25B8</span> ' : '') + escHtml(s.name) + '</td>'
+          + '<td class="num">' + (s.total ? formatINR(s.total) : '\u2013') + '</td><td class="num">' + (s.total ? pct(s.total) : '') + '</td></tr>';
+        s.lines.forEach(function (l) {
+          html += '<tr class="dc-line ' + sId + '" style="display:none;background:#fafafa;font-size:12px;"><td></td>'
+            + '<td style="padding-left:48px;">' + escHtml(l.ledger) + ' <span style="color:#888;">\u00B7 ' + escHtml(l.type) + '</span></td>'
+            + '<td class="num">' + formatINR(l.total) + '</td><td></td></tr>';
+        });
+      });
+    });
+    html += '<tr class="total-row"><td></td><td>Total direct costs</td><td class="num">' + formatINR(cogsTotal) + '</td><td class="num">100.0%</td></tr>';
+    table.innerHTML = html;
+
+    const setOpen = function (row, open) {
+      row.setAttribute('data-open', open ? '1' : '0');
+      const ar = row.querySelector('.dc-arrow');
+      if (ar) ar.textContent = open ? '\u25BE' : '\u25B8';
+    };
+    table.querySelectorAll('tr.dc-dept').forEach(function (row) {
+      row.addEventListener('click', function () {
+        const open = row.getAttribute('data-open') !== '1';
+        setOpen(row, open);
+        table.querySelectorAll('tr.dc-sub.' + row.getAttribute('data-id')).forEach(function (sub) {
+          sub.style.display = open ? 'table-row' : 'none';
+          if (!open) {
+            setOpen(sub, false);
+            table.querySelectorAll('tr.dc-line.' + sub.getAttribute('data-id')).forEach(function (ln) { ln.style.display = 'none'; });
+          }
+        });
+      });
+    });
+    table.querySelectorAll('tr.dc-sub').forEach(function (row) {
+      row.addEventListener('click', function () {
+        const open = row.getAttribute('data-open') !== '1';
+        setOpen(row, open);
+        table.querySelectorAll('tr.dc-line.' + row.getAttribute('data-id')).forEach(function (ln) { ln.style.display = open ? 'table-row' : 'none'; });
+      });
+    });
+  }
   function renderDirectCosts(data) {
     const cogsTotal = data.lines.cogs;
     const breakdown = data.cogsBreakdown || [];
     const months = monthsElapsedInFY();
     const avgMonthly = cogsTotal / months;
     const projectedFY = avgMonthly * 12;
-    const largest = breakdown.length ? breakdown[0].ledger : '—';
+    let largest = breakdown.length ? breakdown[0].ledger : '—';
+    if (data.directCostTree) {
+      let best = null;
+      data.directCostTree.departments.forEach(function (d) { d.subs.forEach(function (s) { if (!best || s.total > best.total) best = { total: s.total, name: d.code + ' \u2013 ' + s.name }; }); });
+      if (best && best.total > 0) largest = best.name;
+    }
 
     const kpiGrid = document.getElementById('dc-kpi-grid');
     kpiGrid.innerHTML =
       '<div class="kpi-card"><div class="kpi-label">Total COGS YTD</div><div class="kpi-value">' + formatINR(cogsTotal) + '</div></div>'
       + '<div class="kpi-card"><div class="kpi-label">Avg monthly run-rate</div><div class="kpi-value">' + formatINR(avgMonthly) + '</div><div class="kpi-note">Based on ' + months + ' months elapsed</div></div>'
       + '<div class="kpi-card"><div class="kpi-label">Projected FY total</div><div class="kpi-value">' + formatINR(projectedFY) + '</div><div class="kpi-note">Run-rate x 12</div></div>'
-      + '<div class="kpi-card"><div class="kpi-label">Largest source</div><div class="kpi-value" style="font-size:16px;">' + largest + '</div></div>';
+      + '<div class="kpi-card"><div class="kpi-label">Largest category</div><div class="kpi-value" style="font-size:16px;">' + largest + '</div></div>';
 
-    const table = document.getElementById('dc-table');
-    let html = '<tr><th>Ledger</th><th>Group</th><th class="num">Total (INR)</th></tr>';
-    breakdown.forEach(function (r) {
-      const groupBadge = (r.parent || '').indexOf('MFG') > -1
-        ? '<span style="color:#eb6834;">' + r.parent + '</span>'
-        : '<span style="color:#2a78d6;">' + r.parent + '</span>';
-      html += '<tr><td>' + r.ledger + '</td><td>' + groupBadge + '</td><td class="num">' + formatINR(r.total) + '</td></tr>';
-    });
-    html += '<tr class="total-row"><td>Total</td><td></td><td class="num">' + formatINR(cogsTotal) + '</td></tr>';
-    table.innerHTML = html;
+    renderDcTree(data.directCostTree, cogsTotal);
   }
 
   document.addEventListener('DOMContentLoaded', function () {
