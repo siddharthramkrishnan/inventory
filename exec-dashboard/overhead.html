@@ -286,10 +286,6 @@
             <h2>Where the cash went</h2>
             <div style="overflow-x:auto;"><table id="cf-cat-table"></table></div>
           </div>
-          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
-            <h2>For discussion</h2>
-            <ul id="cf-discussion" style="font-size:13px;line-height:1.6;padding-left:18px;"></ul>
-          </div>
           <p id="cf-notes" style="font-size:11px;color:#999;line-height:1.5;"></p>
         </div>
       </div>
@@ -563,10 +559,6 @@
         + '<td class="num"><strong>' + cat.total.toFixed(1) + '</strong></td></tr>';
     });
     document.getElementById('cf-cat-table').innerHTML = c;
-
-    document.getElementById('cf-discussion').innerHTML = d.discussion.map(function (p) {
-      return '<li style="margin-bottom:6px;">' + escHtml(p.replace(/^\d+\.\s*/, '')) + '</li>';
-    }).join('');
     document.getElementById('cf-notes').textContent = (d.notes || []).concat(d.basis ? [d.basis] : []).join(' ');
   }
 
