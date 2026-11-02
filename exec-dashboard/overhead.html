@@ -197,6 +197,42 @@
         </div>
       </div>
 
+      <div class="panel" id="cashflow-panel">
+        <h2>Cash Flow <span style="font-weight:400;font-size:12px;color:#888;">— actual cash in and out, April to date (&#8377; lakh)</span></h2>
+        <div id="cf-loading" style="text-align:center;color:#999;padding:30px 0;font-size:13px;">Loading cash flow…</div>
+        <div id="cf-error" style="display:none;font-size:13px;color:#c0392b;"></div>
+        <div id="cf-content" style="display:none;">
+          <div class="kpi-grid" id="cf-kpis"></div>
+          <div class="charts-grid" style="margin-top:6px;">
+            <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+              <h2>Cash in vs cash out each month</h2>
+              <div class="legend-row">
+                <span class="legend-item"><span class="legend-dot" style="background:#1baf7a"></span>Cash in</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#d9534f"></span>Cash out</span>
+              </div>
+              <div class="chart-box"><canvas id="cfBarChart" role="img" aria-label="Bar chart of cash in and cash out by month"></canvas></div>
+            </div>
+            <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+              <h2>Cash in the bank at month end</h2>
+              <div class="chart-box"><canvas id="cfLineChart" role="img" aria-label="Line chart of cash at month end"></canvas></div>
+            </div>
+          </div>
+          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+            <h2>Month by month</h2>
+            <div style="overflow-x:auto;"><table id="cf-month-table"></table></div>
+          </div>
+          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+            <h2>Where the cash went</h2>
+            <div style="overflow-x:auto;"><table id="cf-cat-table"></table></div>
+          </div>
+          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+            <h2>For discussion</h2>
+            <ul id="cf-discussion" style="font-size:13px;line-height:1.6;padding-left:18px;"></ul>
+          </div>
+          <p id="cf-notes" style="font-size:11px;color:#999;line-height:1.5;"></p>
+        </div>
+      </div>
+
       <div class="panel" id="direct-costs-panel">
         <div id="direct-costs-toggle" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
           <h2 style="margin-bottom:0;">Direct Costs (COGS) — click to explore breakdown</h2>
@@ -307,6 +343,7 @@
       document.getElementById('pnl-content').style.display = 'block';
       renderPnl(data);
       renderDirectCosts(data);
+      fetchCashflow(token);
     };
     const script = document.createElement('script');
     script.src = APPS_SCRIPT_URL + '?action=pnl'
@@ -432,6 +469,105 @@
     });
     html += '</table>';
     return html;
+  }
+
+  // ---- Cash Flow section: loads right after the P&L, same sign-in token ----
+  function fmtLakh(n) {
+    if (n === null || n === undefined || isNaN(n)) return '-';
+    const a = Math.abs(n);
+    const s = a >= 100 ? '₹' + (a / 100).toFixed(2) + ' Cr' : '₹' + a.toFixed(1) + ' L';
+    return n < 0 ? '−' + s : s;
+  }
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function fetchCashflow(token) {
+    const callbackName = 'cashflowCallback_' + Date.now();
+    window[callbackName] = function (data) {
+      delete window[callbackName];
+      script.remove();
+      document.getElementById('cf-loading').style.display = 'none';
+      if (data.status !== 'success') {
+        const el = document.getElementById('cf-error');
+        el.textContent = data.message || 'Could not load cash flow.';
+        el.style.display = 'block';
+        return;
+      }
+      document.getElementById('cf-content').style.display = 'block';
+      renderCashflow(data);
+    };
+    const script = document.createElement('script');
+    script.src = APPS_SCRIPT_URL + '?action=cashflow'
+      + '&token=' + encodeURIComponent(token)
+      + '&callback=' + callbackName;
+    script.onerror = function () {
+      delete window[callbackName];
+      document.getElementById('cf-loading').style.display = 'none';
+      const el = document.getElementById('cf-error');
+      el.textContent = 'Could not reach the dashboard service.';
+      el.style.display = 'block';
+    };
+    document.body.appendChild(script);
+  }
+
+  function renderCashflow(d) {
+    const runwayColor = d.runwayMonths < 6 ? '#c0392b' : '#1e7e34';
+    document.getElementById('cf-kpis').innerHTML =
+      '<div class="kpi-card"><div class="kpi-label">Cash today</div><div class="kpi-value">' + fmtLakh(d.cashToday) + '</div><div class="kpi-note">Bank accounts + FDs</div></div>'
+      + '<div class="kpi-card"><div class="kpi-label">Normal monthly spend</div><div class="kpi-value">' + fmtLakh(d.normalMonthlySpend) + '</div><div class="kpi-note">Average May–Sep</div></div>'
+      + '<div class="kpi-card"><div class="kpi-label">Months of cash left</div><div class="kpi-value" style="color:' + runwayColor + ';">' + d.runwayMonths.toFixed(1) + '</div><div class="kpi-note">At normal spend, no new money</div></div>'
+      + '<div class="kpi-card"><div class="kpi-label">Opening cash (1 Apr)</div><div class="kpi-value">' + fmtLakh(d.opening) + '</div></div>';
+
+    const labels = d.months.map(function (m) { return m.label; });
+    new Chart(document.getElementById('cfBarChart'), {
+      type: 'bar',
+      data: { labels: labels, datasets: [
+        { label: 'Cash in', data: d.months.map(function (m) { return m.cashIn; }), backgroundColor: '#1baf7a', borderRadius: 3 },
+        { label: 'Cash out', data: d.months.map(function (m) { return m.cashOut; }), backgroundColor: '#d9534f', borderRadius: 3 },
+      ] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { x: { grid: { display: false } }, y: { ticks: { callback: function (v) { return v + ' L'; } }, grid: { color: '#e1e0d9' } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + fmtLakh(c.raw); } } } },
+      },
+    });
+    new Chart(document.getElementById('cfLineChart'), {
+      type: 'line',
+      data: { labels: ['Opening'].concat(labels), datasets: [{
+        label: 'Cash at month end',
+        data: [d.opening].concat(d.months.map(function (m) { return m.closing; })),
+        borderColor: '#2a78d6', backgroundColor: 'rgba(42,120,214,0.12)', fill: true, tension: 0.25, pointRadius: 4,
+      }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: function (v) { return v + ' L'; } }, grid: { color: '#e1e0d9' } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return fmtLakh(c.raw); } } } },
+      },
+    });
+
+    let t = '<tr><th>Month</th><th class="num">Cash in</th><th class="num">Cash out</th><th class="num">Net</th><th class="num">Cash at month end</th></tr>';
+    d.months.forEach(function (m) {
+      const nc = m.net < 0 ? 'color:#c0392b;' : 'color:#1e7e34;';
+      t += '<tr><td>' + escHtml(m.label) + '</td><td class="num">' + fmtLakh(m.cashIn) + '</td><td class="num">' + fmtLakh(m.cashOut)
+        + '</td><td class="num" style="' + nc + '">' + fmtLakh(m.net) + '</td><td class="num">' + fmtLakh(m.closing) + '</td></tr>';
+    });
+    t += '<tr class="total-row"><td>Total</td><td class="num">' + fmtLakh(d.totals.cashIn) + '</td><td class="num">' + fmtLakh(d.totals.cashOut)
+      + '</td><td class="num">' + fmtLakh(d.totals.net) + '</td><td></td></tr>';
+    document.getElementById('cf-month-table').innerHTML = t;
+
+    let c = '<tr><th>Category</th>' + d.monthLabels.map(function (l) { return '<th class="num">' + escHtml(l) + '</th>'; }).join('') + '<th class="num">Total</th></tr>';
+    d.categories.forEach(function (cat) {
+      c += '<tr><td>' + escHtml(cat.name) + '</td>'
+        + cat.monthly.map(function (x) { return '<td class="num">' + (x ? x.toFixed(1) : '–') + '</td>'; }).join('')
+        + '<td class="num"><strong>' + cat.total.toFixed(1) + '</strong></td></tr>';
+    });
+    document.getElementById('cf-cat-table').innerHTML = c;
+
+    document.getElementById('cf-discussion').innerHTML = d.discussion.map(function (p) {
+      return '<li style="margin-bottom:6px;">' + escHtml(p.replace(/^\d+\.\s*/, '')) + '</li>';
+    }).join('');
+    document.getElementById('cf-notes').textContent = (d.notes || []).concat(d.basis ? [d.basis] : []).join(' ');
   }
 
   function monthsElapsedInFY() {
