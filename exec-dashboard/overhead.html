@@ -197,42 +197,6 @@
         </div>
       </div>
 
-      <div class="panel" id="cashflow-panel">
-        <h2>Cash Flow <span style="font-weight:400;font-size:12px;color:#888;">— actual cash in and out, April to date (&#8377; lakh)</span></h2>
-        <div id="cf-loading" style="text-align:center;color:#999;padding:30px 0;font-size:13px;">Loading cash flow…</div>
-        <div id="cf-error" style="display:none;font-size:13px;color:#c0392b;"></div>
-        <div id="cf-content" style="display:none;">
-          <div class="kpi-grid" id="cf-kpis"></div>
-          <div class="charts-grid" style="margin-top:6px;">
-            <div class="panel" style="box-shadow:none;border:1px solid #eee;">
-              <h2>Cash in vs cash out each month</h2>
-              <div class="legend-row">
-                <span class="legend-item"><span class="legend-dot" style="background:#1baf7a"></span>Cash in</span>
-                <span class="legend-item"><span class="legend-dot" style="background:#d9534f"></span>Cash out</span>
-              </div>
-              <div class="chart-box"><canvas id="cfBarChart" role="img" aria-label="Bar chart of cash in and cash out by month"></canvas></div>
-            </div>
-            <div class="panel" style="box-shadow:none;border:1px solid #eee;">
-              <h2>Cash in the bank at month end</h2>
-              <div class="chart-box"><canvas id="cfLineChart" role="img" aria-label="Line chart of cash at month end"></canvas></div>
-            </div>
-          </div>
-          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
-            <h2>Month by month</h2>
-            <div style="overflow-x:auto;"><table id="cf-month-table"></table></div>
-          </div>
-          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
-            <h2>Where the cash went</h2>
-            <div style="overflow-x:auto;"><table id="cf-cat-table"></table></div>
-          </div>
-          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
-            <h2>For discussion</h2>
-            <ul id="cf-discussion" style="font-size:13px;line-height:1.6;padding-left:18px;"></ul>
-          </div>
-          <p id="cf-notes" style="font-size:11px;color:#999;line-height:1.5;"></p>
-        </div>
-      </div>
-
       <div class="panel" id="direct-costs-panel">
         <div id="direct-costs-toggle" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
           <h2 style="margin-bottom:0;">Direct Costs (COGS) — click to explore breakdown</h2>
@@ -291,6 +255,42 @@
 
             <div id="category-sections-container"></div>
           </div>
+        </div>
+      </div>
+
+      <div class="panel" id="cashflow-panel">
+        <h2>Cash Flow <span style="font-weight:400;font-size:12px;color:#888;">— actual cash in and out, April to date (&#8377; lakh)</span></h2>
+        <div id="cf-loading" style="text-align:center;color:#999;padding:30px 0;font-size:13px;">Loading cash flow…</div>
+        <div id="cf-error" style="display:none;font-size:13px;color:#c0392b;"></div>
+        <div id="cf-content" style="display:none;">
+          <div class="kpi-grid" id="cf-kpis"></div>
+          <div class="charts-grid" style="margin-top:6px;">
+            <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+              <h2>Cash in vs cash out each month</h2>
+              <div class="legend-row">
+                <span class="legend-item"><span class="legend-dot" style="background:#1baf7a"></span>Cash in</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#d9534f"></span>Cash out</span>
+              </div>
+              <div class="chart-box"><canvas id="cfBarChart" role="img" aria-label="Bar chart of cash in and cash out by month"></canvas></div>
+            </div>
+            <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+              <h2>Cash in the bank at month end</h2>
+              <div class="chart-box"><canvas id="cfLineChart" role="img" aria-label="Line chart of cash at month end"></canvas></div>
+            </div>
+          </div>
+          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+            <h2>Month by month</h2>
+            <div style="overflow-x:auto;"><table id="cf-month-table"></table></div>
+          </div>
+          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+            <h2>Where the cash went</h2>
+            <div style="overflow-x:auto;"><table id="cf-cat-table"></table></div>
+          </div>
+          <div class="panel" style="box-shadow:none;border:1px solid #eee;">
+            <h2>For discussion</h2>
+            <ul id="cf-discussion" style="font-size:13px;line-height:1.6;padding-left:18px;"></ul>
+          </div>
+          <p id="cf-notes" style="font-size:11px;color:#999;line-height:1.5;"></p>
         </div>
       </div>
     </div>
