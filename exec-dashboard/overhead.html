@@ -570,6 +570,11 @@
   }
 
   // Direct costs by department -> category -> ledger line (Achira Category Reference).
+  function dcCode(c) {
+    if (!c || c === 'UN' || c === 'UN-UN') return '';
+    return '<span style="display:inline-block;min-width:44px;margin-right:8px;padding:1px 6px;border-radius:4px;background:#eef2f8;color:#4a6fa5;font-family:Consolas,monospace;font-size:11px;font-weight:600;text-align:center;">' + escHtml(c) + '</span>';
+  }
+
   function renderDcTree(tree, cogsTotal) {
     const table = document.getElementById('dc-table');
     if (!tree || !tree.departments) {
@@ -586,14 +591,14 @@
     tree.departments.forEach(function (d, i) {
       const dId = 'dcd' + i;
       html += '<tr class="dc-dept" data-id="' + dId + '" style="font-weight:600;cursor:pointer;">'
-        + '<td><span class="dc-arrow" style="color:#2a78d6;font-size:12px;">\u25B8</span></td><td>' + escHtml(d.name) + '</td>'
+        + '<td><span class="dc-arrow" style="color:#2a78d6;font-size:12px;">\u25B8</span></td><td>' + dcCode(d.code) + escHtml(d.name) + '</td>'
         + '<td class="num">' + formatINR(d.total) + '</td><td class="num">' + pct(d.total) + '</td></tr>';
       d.subs.forEach(function (s, j) {
         const sId = dId + 's' + j;
         const hasLines = s.lines.length > 0;
         const grey = s.total ? '' : 'color:#aaa;';
         html += '<tr class="dc-sub ' + dId + '" data-id="' + sId + '" style="display:none;' + (hasLines ? 'cursor:pointer;' : '') + grey + '"><td></td>'
-          + '<td style="padding-left:22px;">' + (hasLines ? '<span class="dc-arrow" style="color:#2a78d6;font-size:12px;">\u25B8</span> ' : '') + escHtml(s.name) + '</td>'
+          + '<td style="padding-left:22px;">' + (hasLines ? '<span class="dc-arrow" style="color:#2a78d6;font-size:12px;">\u25B8</span> ' : '') + dcCode(s.code) + escHtml(s.name) + '</td>'
           + '<td class="num">' + (s.total ? formatINR(s.total) : '\u2013') + '</td><td class="num">' + (s.total ? pct(s.total) : '') + '</td></tr>';
         s.lines.forEach(function (l) {
           html += '<tr class="dc-line ' + sId + '" style="display:none;background:#fafafa;font-size:12px;"><td></td>'
