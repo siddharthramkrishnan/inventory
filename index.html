@@ -688,16 +688,21 @@ function highlightDD(items) {
 // (see appendRow() in Code.gs), this only widens what a person can type
 // to FIND that row. Each field is optional on a given item (blank
 // z/s/b just never matches, never throws).
+// Values are coerced with String() first: Sheets' getValues() returns
+// numeric cells as numbers (e.g. Zoho Item ID), and calling
+// .toLowerCase() on a number threw a TypeError on the first item,
+// breaking every search (including ARN search).
 function search(q) {
   const ql = q.toLowerCase();
+  const lc = v => (v == null ? '' : String(v)).toLowerCase();
   const out = [];
   for (let i=0; i<ITEMS.length && out.length<40; i++) {
     const it = ITEMS[i];
-    if (it.a.toLowerCase().includes(ql) ||
-        it.n.toLowerCase().includes(ql) ||
-        (it.z && it.z.toLowerCase().includes(ql)) ||
-        (it.s && it.s.toLowerCase().includes(ql)) ||
-        (it.b && it.b.toLowerCase().includes(ql))) out.push(it);
+    if (lc(it.a).includes(ql) ||
+        lc(it.n).includes(ql) ||
+        (it.z && lc(it.z).includes(ql)) ||
+        (it.s && lc(it.s).includes(ql)) ||
+        (it.b && lc(it.b).includes(ql))) out.push(it);
   }
   return out;
 }
@@ -722,6 +727,7 @@ function renderDropdown(results, q) {
 }
 
 function hl(text, q) {
+  text = text == null ? '' : String(text);
   const idx = text.toLowerCase().indexOf(q);
   if (idx < 0) return text;
   return text.slice(0,idx)+'<mark style="background:#FEF08A;border-radius:2px">'+text.slice(idx,idx+q.length)+'</mark>'+text.slice(idx+q.length);

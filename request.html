@@ -508,16 +508,19 @@ function smartSearch(q) {
 
   const scored = [];
   for (const it of ITEMS) {
-    const n = it.n.toLowerCase();
-    const a = it.a.toLowerCase();
-    const w = it.w ? it.w.toLowerCase() : '';
+    // String() first: Sheets returns numeric cells (e.g. Zoho Item ID)
+    // as numbers, and number.toLowerCase() threw, breaking all search.
+    const lc = v => (v == null ? '' : String(v)).toLowerCase();
+    const n = lc(it.n);
+    const a = lc(it.a);
+    const w = it.w ? lc(it.w) : '';
     // Zoho Item ID / SKU — alternate catalogue-style identifiers,
     // scored like ARN (exact highest, substring next). Brand is scored
     // like a descriptive substring match, same tier as the "original
     // query somewhere in name" check below.
-    const z = it.z ? it.z.toLowerCase() : '';
-    const s = it.s ? it.s.toLowerCase() : '';
-    const b = it.b ? it.b.toLowerCase() : '';
+    const z = it.z ? lc(it.z) : '';
+    const s = it.s ? lc(it.s) : '';
+    const b = it.b ? lc(it.b) : '';
     let score = 0;
 
     // Exact ARN match — highest priority
@@ -634,6 +637,7 @@ function renderDropdown(results, q) {
 }
 
 function hlText(text, q) {
+  text = text == null ? '' : String(text);
   const idx = text.toLowerCase().indexOf(q);
   if (idx < 0) return text;
   return text.slice(0,idx) +
