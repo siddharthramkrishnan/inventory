@@ -520,9 +520,28 @@ function classifyDateValue(raw) {
   return { kind: 'invalid', raw: s };
 }
 
+// "hh:mm AM" / "hh:mm PM" (12-hour, zero-padded) — always IST wall-clock.
 function istTimeText(p) {
   const h12 = p.hour % 12 || 12;
-  return pad2(h12) + ':' + p.minute + ' ' + (p.hour < 12 ? 'AM' : 'PM') + ' IST';
+  return pad2(h12) + ':' + p.minute + ' ' + (p.hour < 12 ? 'AM' : 'PM');
+}
+
+// Normalises a plain-text time typed/captured as IST wall-clock (e.g.
+// index.html's "03:30 pm", or "15:30") to "hh:mm AM/PM". Returns null if
+// the text isn't a recognisable time.
+function normaliseTimeText(s) {
+  const m = String(s).trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap])?\.?\s*m?\.?$/i);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  if (min > 59) return null;
+  if (m[3]) {
+    if (h < 1 || h > 12) return null;
+    h = (h % 12) + (m[3].toLowerCase() === 'p' ? 12 : 0);
+  } else if (h > 23) {
+    return null;
+  }
+  return istTimeText({ hour: h, minute: pad2(min) });
 }
 
 // "DD-MM-YYYY" in IST. Blank -> ''. Unparseable -> the original text.
@@ -534,15 +553,17 @@ function formatIstDate(raw) {
   return p.day + '-' + p.month + '-' + p.year;
 }
 
-// "DD-MM-YYYY hh:mm AM IST" for a real timestamp; a zone-less calendar
-// date has no time to show, so it gets the date only.
+// "DD-MM-YYYY, hh:mm AM" in IST, e.g. "23-09-2026, 12:00 AM".
+// A zone-less calendar string ("23/09/2026") is a date-only GRN date —
+// the same thing a date-formatted Sheets cell stores as midnight IST —
+// so it is shown as 12:00 AM on that day (matching its sort key in
+// grnDateSortValue()), never shifted to another day.
 function formatIstDateTime(raw) {
   const c = classifyDateValue(raw);
   if (!c) return '';
   if (c.kind === 'invalid') return c.raw;
-  if (c.kind === 'calendar') return c.day + '-' + c.month + '-' + c.year;
-  const p = getIstParts(c.date);
-  return p.day + '-' + p.month + '-' + p.year + ' ' + istTimeText(p);
+  const p = c.kind === 'instant' ? getIstParts(c.date) : Object.assign({ hour: 0, minute: '00' }, c);
+  return p.day + '-' + p.month + '-' + p.year + ', ' + istTimeText(p);
 }
 
 // For fields that may hold either a date-only cell (stored as midnight
@@ -557,14 +578,16 @@ function formatIstDateAuto(raw) {
   return formatIstDateTime(raw);
 }
 
-// "hh:mm AM IST" for a real timestamp/time cell. A plain text time (e.g.
-// "03:30 pm", already captured as IST wall-clock by index.html) is shown
-// unchanged.
+// "hh:mm AM" in IST for a real timestamp/time cell. A plain text time
+// (e.g. "03:30 pm", already captured as IST wall-clock by index.html) is
+// normalised to the same shape without any timezone shift; anything
+// unrecognisable is shown unchanged.
 function formatIstTime(raw) {
   const c = classifyDateValue(raw);
   if (!c) return '';
   if (c.kind === 'instant') return istTimeText(getIstParts(c.date));
-  return String(raw).trim();
+  const s = String(raw).trim();
+  return normaliseTimeText(s) || s;
 }
 
 // Adjustment Log rows: the Timestamp column (ISO, written by appendRow()
@@ -583,6 +606,17 @@ function adjustmentDateDisplay(r) {
 function adjustmentTimeDisplay(r) {
   return hasValidInstant(r.timestamp) ? formatIstTime(r.timestamp) : formatIstTime(r.time);
 }
+// "DD-MM-YYYY, hh:mm AM" for an adjustment row. From the Timestamp when
+// valid; otherwise Date + Time columns combined. A legacy row with a Date
+// but no Time at all shows the date alone — a transaction time is never
+// invented for it.
+function adjustmentDateTimeDisplay(r) {
+  if (hasValidInstant(r.timestamp)) return formatIstDateTime(r.timestamp);
+  const date = formatIstDate(r.date);
+  const time = formatIstTime(r.time);
+  if (date && time) return date + ', ' + time;
+  return date || time;
+}
 
 // Master Item List values are generic {label, value} pairs; only a value
 // that is unmistakably a serialized Date (strict ISO timestamp) is
@@ -595,10 +629,10 @@ function formatMasterFieldValue(value) {
 
 // Excel opens a CSV cell like 05-09-2026 by guessing a date in the
 // viewer's locale (en-US would read it as 9 May). Wrapping a formatted
-// date as ="05-09-2026" makes Excel keep the exact DD-MM-YYYY text.
+// value as ="05-09-2026, 10:30 AM" makes Excel keep the exact text.
 // Only applied to values this page itself formatted (strict pattern).
 function excelDateCell(s) {
-  return /^\d{2}-\d{2}-\d{4}( \d{2}:\d{2} [AP]M IST)?$/.test(String(s)) ? '="' + s + '"' : s;
+  return /^\d{2}-\d{2}-\d{4}(, \d{2}:\d{2} [AP]M)?$/.test(String(s)) ? '="' + s + '"' : s;
 }
 // ---- IST date/time display formatting (end) ----
 
@@ -643,7 +677,7 @@ function getRowDisplay(r) {
       sourceHtml: '<span class="source-badge adjustment">Inventory Adjustment</span>',
       sourceLabel: 'Inventory Adjustment',
       grnNo: r.grnNo || '',
-      grnDate: adjustmentDateDisplay(r),
+      grnDate: adjustmentDateTimeDisplay(r),
       poNo: '—',
       vendor: '—',
       materialDescription: '[' + (r.adjType || '') + '] ' + (r.itemName || ''),
@@ -661,7 +695,7 @@ function getRowDisplay(r) {
     sourceHtml: '<span class="source-badge grn">GRN Record</span>',
     sourceLabel: 'GRN Record',
     grnNo: r.grnNo || '',
-    grnDate: formatIstDate(r.grnDate),
+    grnDate: formatIstDateTime(r.grnDate),
     poNo: r.poNo || '',
     vendor: r.vendor || '',
     materialDescription: r.materialDescription || '',
@@ -1084,7 +1118,7 @@ async function loadDetail(tabName, grnNo) {
   document.getElementById('detailHeader').innerHTML =
     '<div style="margin-bottom:10px">' + statusBadge(first.verificationStatus) + '</div>' +
     row('GRN No.', first.grnNo) +
-    row('GRN Date', formatIstDate(first.receivedDate)) +
+    row('GRN Date', formatIstDateTime(first.receivedDate)) +
     row('Category', tabName) +
     row('Vendor', first.partyName) +
     row('PO No.', first.poNo) +
@@ -1138,7 +1172,6 @@ function viewAdjustmentDetail(r) {
 
   document.getElementById('detailTitle').textContent = 'Inventory Adjustment Details';
   document.getElementById('printDetailBtn').style.display = 'none';
-  document.getElementById('copyGrnBtn').style.display = ''; // may have been hidden by viewMasterItemDetail()
   document.getElementById('copyPoBtn').style.display = 'none';
   document.getElementById('detailItemsSection').style.display = 'none';
 
@@ -1264,7 +1297,7 @@ function buildPrintHtml(items, tabName) {
   const first = items[0];
   const generalRows =
     printRow('GRN Number', first.grnNo) +
-    printRow('GRN Date', formatIstDate(first.receivedDate)) +
+    printRow('GRN Date', formatIstDateTime(first.receivedDate)) +
     printRow('Vendor', first.partyName) +
     printRow('PO Number', first.poNo) +
     printRow('Invoice Number', first.invoiceNo) +
