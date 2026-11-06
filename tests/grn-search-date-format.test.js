@@ -123,16 +123,16 @@ test('Date object input is formatted in IST', function() {
 });
 
 test('ISO with explicit +05:30 offset', function() {
-  assert.strictEqual(fmtDateTime('2026-09-23T00:00:00+05:30'), '23-09-2026 12:00 AM IST');
+  assert.strictEqual(fmtDateTime('2026-09-23T00:00:00+05:30'), '23-09-2026, 12:00 AM');
 });
 
 test('IST date-time conversion: 06:45Z -> 12:15 PM IST', function() {
-  assert.strictEqual(fmtDateTime('2026-09-23T06:45:00.000Z'), '23-09-2026 12:15 PM IST');
+  assert.strictEqual(fmtDateTime('2026-09-23T06:45:00.000Z'), '23-09-2026, 12:15 PM');
 });
 
 test('IST time-only conversion', function() {
-  assert.strictEqual(fmtTime('2026-09-23T06:45:00.000Z'), '12:15 PM IST');
-  assert.strictEqual(fmtTime('2026-09-23T13:29:00.000Z'), '06:59 PM IST');
+  assert.strictEqual(fmtTime('2026-09-23T06:45:00.000Z'), '12:15 PM');
+  assert.strictEqual(fmtTime('2026-09-23T13:29:00.000Z'), '06:59 PM');
 });
 
 // ---------------------------------------------------------------------
@@ -140,15 +140,15 @@ test('IST time-only conversion', function() {
 // ---------------------------------------------------------------------
 test('one millisecond before IST midnight stays on the previous day', function() {
   assert.strictEqual(fmtDate('2026-09-22T18:29:59.999Z'), '22-09-2026');
-  assert.strictEqual(fmtDateTime('2026-09-22T18:29:59.999Z'), '22-09-2026 11:59 PM IST');
+  assert.strictEqual(fmtDateTime('2026-09-22T18:29:59.999Z'), '22-09-2026, 11:59 PM');
 });
 
 test('exactly IST midnight rolls to the next day at 12:00 AM', function() {
-  assert.strictEqual(fmtDateTime('2026-09-22T18:30:00.000Z'), '23-09-2026 12:00 AM IST');
+  assert.strictEqual(fmtDateTime('2026-09-22T18:30:00.000Z'), '23-09-2026, 12:00 AM');
 });
 
 test('UTC evening rolls the IST date forward (21:00Z -> next day 02:30 AM)', function() {
-  assert.strictEqual(fmtDateTime('2026-09-22T21:00:00.000Z'), '23-09-2026 02:30 AM IST');
+  assert.strictEqual(fmtDateTime('2026-09-22T21:00:00.000Z'), '23-09-2026, 02:30 AM');
 });
 
 test('month rollover (28 Feb non-leap -> 01-03)', function() {
@@ -164,11 +164,11 @@ test('year rollover (31 Dec 18:30Z -> 01-01-next year)', function() {
 });
 
 test('UTC midnight is 05:30 AM IST on the same day', function() {
-  assert.strictEqual(fmtDateTime('2026-09-23T00:00:00.000Z'), '23-09-2026 05:30 AM IST');
+  assert.strictEqual(fmtDateTime('2026-09-23T00:00:00.000Z'), '23-09-2026, 05:30 AM');
 });
 
 test('noon IST is 12:00 PM', function() {
-  assert.strictEqual(fmtTime('2026-09-23T06:30:00.000Z'), '12:00 PM IST');
+  assert.strictEqual(fmtTime('2026-09-23T06:30:00.000Z'), '12:00 PM');
 });
 
 // ---------------------------------------------------------------------
@@ -184,8 +184,8 @@ test('"dd-mm-yyyy" string is normalised, "yyyy-mm-dd" is reordered', function() 
   assert.strictEqual(fmtDate('2026-09-23'), '23-09-2026');
 });
 
-test('calendar string has no time to show in date-time format', function() {
-  assert.strictEqual(fmtDateTime('23/09/2026'), '23-09-2026');
+test('calendar string is shown as 12:00 AM on that day in date-time format', function() {
+  assert.strictEqual(fmtDateTime('23/09/2026'), '23-09-2026, 12:00 AM');
 });
 
 // ---------------------------------------------------------------------
@@ -225,8 +225,10 @@ test('formatted output never contains NaN/undefined/Invalid', function() {
   });
 });
 
-test('plain text time (from index.html) is shown unchanged', function() {
-  assert.strictEqual(fmtTime('03:30 pm'), '03:30 pm');
+test('plain text time (from index.html) is normalised to hh:mm AM/PM without shifting', function() {
+  assert.strictEqual(fmtTime('03:30 pm'), '03:30 PM');
+  assert.strictEqual(fmtTime('15:30'), '03:30 PM');
+  assert.strictEqual(fmtTime('not a time'), 'not a time');
 });
 
 // ---------------------------------------------------------------------
@@ -237,7 +239,7 @@ test('auto: date-only cell (IST midnight) shows date only', function() {
 });
 
 test('auto: real verification timestamp shows date + IST time', function() {
-  assert.strictEqual(fmtAuto('2026-09-23T09:05:00.000Z'), '23-09-2026 02:35 PM IST');
+  assert.strictEqual(fmtAuto('2026-09-23T09:05:00.000Z'), '23-09-2026, 02:35 PM');
 });
 
 // ---------------------------------------------------------------------
@@ -274,10 +276,10 @@ test('results table: GRN Date column shows DD-MM-YYYY, never ISO/UTC', function(
   const all = rows.join('\n');
   assert.ok(!/\d{4}-\d{2}-\d{2}T/.test(all), 'ISO timestamp leaked into the table:\n' + all);
   assert.ok(!/1899/.test(all), '1899 epoch leaked into the table');
-  assert.ok(all.indexOf('<td>23-09-2026</td>') > -1, 'GRN date not formatted');
-  assert.ok(all.indexOf('<td>05-09-2026</td>') > -1, 'dd/mm/yyyy GRN date not formatted');
+  assert.ok(all.indexOf('<td>23-09-2026, 12:00 AM</td>') > -1, 'GRN date not formatted');
+  assert.ok(all.indexOf('<td>05-09-2026, 12:00 AM</td>') > -1, 'dd/mm/yyyy GRN date not formatted');
   // Adjustment row: date from Timestamp (19:15Z 30 Sep = 00:45 IST 1 Oct).
-  assert.ok(all.indexOf('<td>01-10-2026</td>') > -1, 'adjustment date not taken from IST timestamp');
+  assert.ok(all.indexOf('<td>01-10-2026, 12:45 AM</td>') > -1, 'adjustment date not taken from IST timestamp');
 });
 
 test('sorting uses real timestamps (desc and asc), not formatted strings', function() {
@@ -311,9 +313,9 @@ test('Excel export: GRN Date as DD-MM-YYYY text cells, no ISO, blanks stay blank
   assert.ok(lines[0].indexOf('GRN Date') > -1);
   const csv = lines.join('\n');
   assert.ok(!/\d{4}-\d{2}-\d{2}T/.test(csv), 'ISO timestamp leaked into export:\n' + csv);
-  assert.ok(csv.indexOf('"=""23-09-2026"""') > -1, 'GRN date not exported as Excel text DD-MM-YYYY:\n' + csv);
-  assert.ok(csv.indexOf('"=""05-09-2026"""') > -1, '05-09 must stay DD-MM in Excel (not May 9)');
-  assert.ok(csv.indexOf('"=""01-10-2026"""') > -1, 'adjustment date not exported in IST');
+  assert.ok(csv.indexOf('"=""23-09-2026, 12:00 AM"""') > -1, 'GRN date not exported as Excel text DD-MM-YYYY:\n' + csv);
+  assert.ok(csv.indexOf('"=""05-09-2026, 12:00 AM"""') > -1, '05-09 must stay DD-MM in Excel (not May 9)');
+  assert.ok(csv.indexOf('"=""01-10-2026, 12:45 AM"""') > -1, 'adjustment date not exported in IST');
   const blankRow = lines.find(function(l) { return l.indexOf('GR/DD/1003') > -1; });
   assert.ok(/^GRN Record,GR\/DD\/1003,,PO-3,/.test(blankRow), 'blank GRN date should export as empty: ' + blankRow);
   const masterRow = lines.find(function(l) { return l.indexOf('Master Item') === 0; });
@@ -322,7 +324,7 @@ test('Excel export: GRN Date as DD-MM-YYYY text cells, no ISO, blanks stay blank
 
 test('excelDateCell only wraps values this page formatted', function() {
   assert.strictEqual(sb.ctx.excelDateCell('23-09-2026'), '="23-09-2026"');
-  assert.strictEqual(sb.ctx.excelDateCell('23-09-2026 02:35 PM IST'), '="23-09-2026 02:35 PM IST"');
+  assert.strictEqual(sb.ctx.excelDateCell('23-09-2026, 02:35 PM'), '="23-09-2026, 02:35 PM"');
   assert.strictEqual(sb.ctx.excelDateCell(''), '');
   assert.strictEqual(sb.ctx.excelDateCell('—'), '—');
   assert.strictEqual(sb.ctx.excelDateCell('=HYPERLINK("x")'), '=HYPERLINK("x")');
@@ -339,18 +341,18 @@ test('GRN detail view: GRN/Invoice/Verified dates in DD-MM-YYYY + IST', function
   sb.run('grnDetailCache["Consumables||GR/DD/1001"] = ' + JSON.stringify(GRN_ITEMS) + ';');
   return sb.ctx.loadDetail('Consumables', 'GR/DD/1001').then(function() {
     const h = sb.elements['detailHeader'].innerHTML;
-    assert.ok(h.indexOf('GRN Date</span><span class="value">23-09-2026<') > -1, h);
+    assert.ok(h.indexOf('GRN Date</span><span class="value">23-09-2026, 12:00 AM<') > -1, h);
     assert.ok(h.indexOf('Invoice Date</span><span class="value">21-09-2026<') > -1, h);
-    assert.ok(h.indexOf('Verified Date</span><span class="value">23-09-2026 02:35 PM IST<') > -1, h);
+    assert.ok(h.indexOf('Verified Date</span><span class="value">23-09-2026, 02:35 PM<') > -1, h);
     assert.ok(!/\d{4}-\d{2}-\d{2}T/.test(h), 'ISO leaked into detail view');
   });
 });
 
 test('print layout: dates in DD-MM-YYYY + IST', function() {
   const out = sb.ctx.buildPrintHtml(GRN_ITEMS, 'Consumables');
-  assert.ok(out.indexOf('>23-09-2026<') > -1);
+  assert.ok(out.indexOf('>23-09-2026, 12:00 AM<') > -1);
   assert.ok(out.indexOf('>21-09-2026<') > -1);
-  assert.ok(out.indexOf('>23-09-2026 02:35 PM IST<') > -1);
+  assert.ok(out.indexOf('>23-09-2026, 02:35 PM<') > -1);
   assert.ok(!/\d{4}-\d{2}-\d{2}T/.test(out), 'ISO leaked into print layout');
 });
 
@@ -359,7 +361,7 @@ test('adjustment detail: Date/Time from IST Timestamp; Expiry Date formatted', f
   sb.ctx.viewAdjustmentDetail(adj);
   const h = sb.elements['detailHeader'].innerHTML;
   assert.ok(h.indexOf('>Date</span><span class="value">01-10-2026<') > -1, h);
-  assert.ok(h.indexOf('>Time</span><span class="value">12:45 AM IST<') > -1, h);
+  assert.ok(h.indexOf('>Time</span><span class="value">12:45 AM<') > -1, h);
   assert.ok(h.indexOf('Expiry Date</span><span class="value">31-03-2027<') > -1, h);
   assert.ok(!/1899|\d{4}-\d{2}-\d{2}T/.test(h), 'raw/epoch value leaked: ' + h);
 });
@@ -368,7 +370,7 @@ test('adjustment detail without Timestamp falls back to Date/Time columns', func
   sb.ctx.viewAdjustmentDetail({ source: 'adjustment', adjId: 'ADJ-2', date: '06/08/2026', time: '03:30 pm', timestamp: '' });
   const h = sb.elements['detailHeader'].innerHTML;
   assert.ok(h.indexOf('>Date</span><span class="value">06-08-2026<') > -1, h);
-  assert.ok(h.indexOf('>Time</span><span class="value">03:30 pm<') > -1, h);
+  assert.ok(h.indexOf('>Time</span><span class="value">03:30 PM<') > -1, h);
   assert.ok(h.indexOf('Expiry Date</span><span class="value">—<') > -1, 'blank expiry should show —');
 });
 

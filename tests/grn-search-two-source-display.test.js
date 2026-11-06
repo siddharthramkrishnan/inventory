@@ -227,7 +227,7 @@ test('getRowDisplay(): an Adjustment row surfaces its own real fields — GRN No
   const mod = loadDisplayModule();
   const d = mod.getRowDisplay(adjRow());
   assert.strictEqual(d.grnNo, 'GR/DD/1075');
-  assert.strictEqual(d.grnDate, '01-09-2026'); // display-formatted DD-MM-YYYY (raw r.date stays '01/09/2026')
+  assert.strictEqual(d.grnDate, '01-09-2026, 03:45 PM'); // display-formatted IST from the Timestamp (raw r.date stays '01/09/2026')
   assert.strictEqual(d.materialDescription, '[Restock] Resin');
   assert.strictEqual(d.quantity, 12);
   assert.strictEqual(d.statusHtml, 'Approved', 'Adjustment status is shown as plain text, not the GRN verified/pending badge');
@@ -330,9 +330,9 @@ test('CSV export: a GRN row exports "GRN Record" as its Source and every existin
   const build = extractCsvBuildLogic();
   const mod = loadDisplayModule();
   const out = build([grnRow()], mod.getRowDisplay, function(v) { return v == null ? '' : String(v); });
-  // GRN Date: raw '06/08/2026' exports as DD-MM-YYYY, wrapped ="..." so
+  // GRN Date: raw '06/08/2026' exports as "DD-MM-YYYY, 12:00 AM", wrapped ="..." so
   // Excel keeps it as text instead of re-guessing day/month by locale.
-  assert.deepStrictEqual(out.dataRows[0], ['GRN Record', 'GR/DD/1075', '="06-08-2026"', 'PO-100', 'Acme Vendor', 'Widget', 5, 'Nos', 'Verified', 'Alice', 250, 'INR', 'Chemicals']);
+  assert.deepStrictEqual(out.dataRows[0], ['GRN Record', 'GR/DD/1075', '="06-08-2026, 12:00 AM"', 'PO-100', 'Acme Vendor', 'Widget', 5, 'Nos', 'Verified', 'Alice', 250, 'INR', 'Chemicals']);
 });
 
 test('CSV export: an Adjustment row exports "Inventory Adjustment" as its Source, with em-dashes for the fields it has none of', function() {
