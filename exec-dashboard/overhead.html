@@ -363,6 +363,7 @@
     const y1 = cs ? cs.products.total : l.cogs;
     const y3 = cs ? cs.grants.total : 0;
     const yUn = cs ? cs.unassigned.total : 0;
+    const yCm = cs && cs.common ? cs.common.total : 0;
     const red = '#c0392b';
     let rowSeq = 0;
     const hdr = function (label) {
@@ -391,7 +392,7 @@
     html += hdr('Income');
     html += line('Sales &ndash; Manufacturing (kits)', formatINR(x1));
     (data.productSplit || []).forEach(function (g) {
-      html += line('<span style="color:#666;padding-left:18px;">of which ' + g.name + '</span>', formatINR(g.total), g.ledgers);
+      html += line('<span style="color:#666;padding-left:18px;">of which ' + g.name + (g.name === 'Cartridge' ? ' <span style="font-size:11px;color:#999;">(Tally groups this ledger under Sales &ndash; Service)</span>' : '') + '</span>', formatINR(g.total), g.ledgers);
     });
     html += line('Sales &ndash; Service line', formatINR(x2));
     html += line('Grant &amp; Other Income', formatINR(x3), data.grantIncomeBreakdown);
@@ -401,14 +402,16 @@
     html += line('COGS &ndash; Manufacturing', formatINR(y1), deptRows(cs && cs.products));
     html += line('COGS &ndash; Service', notTracked);
     html += line('COGS &ndash; Grants', formatINR(y3), deptRows(cs && cs.grants));
-    if (yUn) html += line('COGS &ndash; Not assigned to a stream', formatINR(yUn), deptRows(cs.unassigned));
+    if (yCm) html += line('COGS &ndash; Common inventory (shared, not allocated)', formatINR(yCm), deptRows(cs.common));
+    if (yUn) html += line('COGS &ndash; General (not assigned to a stream)', formatINR(yUn), deptRows(cs.unassigned));
     html += total('= Total COGS', formatINR(l.cogs));
 
     html += hdr('Gross profit');
     html += line('GP &ndash; Manufacturing', formatINR(x1 - y1), null, sgn(x1 - y1));
     html += line('GP &ndash; Service', formatINR(x2), null);
     html += line('GP &ndash; Grants', formatINR(x3 - y3), null, sgn(x3 - y3));
-    if (yUn) html += line('Not assigned (cost only)', formatINR(-yUn), null, red);
+    if (yCm) html += line('Common inventory (cost only, not allocated)', formatINR(-yCm), null, red);
+    if (yUn) html += line('General (cost only, not assigned)', formatINR(-yUn), null, red);
     const gpTotal = l.totalIncome - l.cogs;
     html += total('= Gross Profit', formatINR(gpTotal), sgn(gpTotal));
 
@@ -587,9 +590,10 @@
         + '<b style="color:' + (prodResult < 0 ? '#c0392b' : '#1e7e34') + ';">' + fmtLakh(prodResult / 1e5) + '</b></div>';
       costTiles = '<h3 style="font-size:14px;font-weight:600;margin:24px 0 0 0;">Direct costs (purchases + direct expenses)</h3>'
         + '<div class="kpi-grid" style="margin:10px 0 0 0;">'
-        + tile(parts[0].color, 'Products', fmtLakh(cs.products.total / 1e5), 'Manufacturing and common inventory materials', prodExtra + costDetail(cs.products.depts))
+        + tile(parts[0].color, 'Products', fmtLakh(cs.products.total / 1e5), 'Manufacturing materials', prodExtra + costDetail(cs.products.depts))
         + tile(parts[1].color, 'Services', '&mdash;', 'Not tracked in Tally')
         + tile(parts[2].color, 'Grants', fmtLakh(cs.grants.total / 1e5), 'R&amp;D and engineering materials', costDetail(cs.grants.depts))
+        + (cs.common && cs.common.total ? tile('#d5d9de', 'Common inventory', fmtLakh(cs.common.total / 1e5), 'Shared between products and R&amp;D, not allocated', costDetail(cs.common.depts)) : '')
         + (cs.unassigned.total ? tile('#d5d9de', 'Not assigned', fmtLakh(cs.unassigned.total / 1e5), 'General supplies and general transport', costDetail(cs.unassigned.depts)) : '')
         + '</div>';
     }
@@ -597,7 +601,7 @@
     const note = '<div class="kpi-note" style="margin-top:12px;">Earned income from customers (products + services) is '
       + fmtLakh(sales / 1e5) + ', or ' + pct(sales).toFixed(1) + '% of total income. Grants are counted as income when received.</div>';
     const costNote = cs
-      ? '<div class="kpi-note" style="margin-top:6px;">Direct costs are assigned by department code: Manufacturing and Common inventory go to Products; R&amp;D and Engineering go to Grants. '
+      ? '<div class="kpi-note" style="margin-top:6px;">Direct costs are assigned by department code: Manufacturing goes to Products; R&amp;D and Engineering go to Grants; Common inventory is shared and shown on its own. '
         + (cs.unassigned.total ? fmtLakh(cs.unassigned.total / 1e5) + ' (general supplies and transport) is not assigned to any stream. ' : '')
         + 'Total ' + fmtLakh((cs.total || 0) / 1e5) + '. This excludes the opening and closing stock movement, which is shown in the Cost of Sales table above.</div>'
       : '';
