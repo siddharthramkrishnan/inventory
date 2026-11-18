@@ -416,7 +416,7 @@
       });
     });
 
-    renderIncomeMix(data.incomeMix);
+    renderIncomeMix(data.incomeMix, data.cogsByStream);
 
     document.getElementById('pnl-overhead-pct').textContent =
       data.overheadPctSalesRevenue !== null ? data.overheadPctSalesRevenue.toFixed(1) + '%' : '—';
@@ -459,7 +459,7 @@
   }
 
   // ---- Income mix: Products (kits sold) / Services (work for other organisations) / Grants ----
-  function renderIncomeMix(mix) {
+  function renderIncomeMix(mix, cs) {
     const content = document.getElementById('pnl-content');
     let panel = document.getElementById('income-mix-panel');
     if (!mix || !mix.total) { if (panel) panel.style.display = 'none'; return; }
@@ -492,6 +492,20 @@
       : '';
     const pct = function (v) { return mix.total ? (v / mix.total * 100) : 0; };
     const bar = bar1 + bar2;
+    // Direct cost (COGS) per stream, from the department codes on the Direct Cost Mapping tab.
+    const costLine = function (key, m) {
+      if (!cs) return '';
+      const row = 'font-size:12px;margin-top:10px;padding-top:8px;border-top:1px solid #eee;color:#444;';
+      if (key === 'services') {
+        return '<div style="' + row + '">Direct cost: <span style="color:#888;">not tracked in Tally</span></div>';
+      }
+      if (key === 'products') {
+        const c = cs.products.total, r = m.total - c;
+        return '<div style="' + row + '">Direct cost (manufacturing + common inventory): <b>' + fmtLakh(c / 1e5) + '</b>'
+          + '<br>Sales minus direct cost: <b style="color:' + (r < 0 ? '#c0392b' : '#1e7e34') + ';">' + fmtLakh(r / 1e5) + '</b></div>';
+      }
+      return '<div style="' + row + '">Spent on R&amp;D and engineering materials: <b>' + fmtLakh(cs.grants.total / 1e5) + '</b></div>';
+    };
     let cards = '<div class="kpi-grid" style="margin:16px 0 0 0;">';
     parts.forEach(function (p) {
       const m = mix[p.key];
@@ -501,6 +515,7 @@
         + '<div class="kpi-note" style="color:#666;">' + pct(m.total).toFixed(1) + '% of total income'
         + (p.key !== 'grants' && earned > 0 ? ' &middot; ' + (m.total / earned * 100).toFixed(0) + '% of earned income' : '') + '</div>'
         + '<div class="kpi-note">' + p.sub + '</div>'
+        + costLine(p.key, m)
         + (m.items.length ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:#2a78d6;">Show ledgers</summary>'
           + renderBreakdownSubtable(m.items) + '</details>' : '')
         + '</div>';
@@ -509,7 +524,12 @@
     const sales = mix.products.total + mix.services.total;
     const note = '<div class="kpi-note" style="margin-top:12px;">Earned income from customers (products + services) is '
       + fmtLakh(sales / 1e5) + ', or ' + pct(sales).toFixed(1) + '% of total income. Grants are counted as income when received.</div>';
-    panel.innerHTML = '<h2>Where our income comes from (YTD)</h2>' + bar + cards + note;
+    const costNote = cs
+      ? '<div class="kpi-note" style="margin-top:6px;">Direct costs are assigned by department code: Manufacturing and Common inventory go to Products; R&amp;D and Engineering go to Grants. '
+        + (cs.unassigned.total ? fmtLakh(cs.unassigned.total / 1e5) + ' (general supplies and transport) is not assigned to any stream. ' : '')
+        + 'Total direct cost ' + fmtLakh((cs.total || 0) / 1e5) + '.</div>'
+      : '';
+    panel.innerHTML = '<h2>Where our income comes from (YTD)</h2>' + bar + cards + note + costNote;
   }
 
   function renderBreakdownSubtable(rows) {
