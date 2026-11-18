@@ -390,6 +390,9 @@
 
     html += hdr('Income');
     html += line('Sales &ndash; Manufacturing (kits)', formatINR(x1));
+    (data.productSplit || []).forEach(function (g) {
+      html += line('<span style="color:#666;padding-left:18px;">of which ' + g.name + '</span>', formatINR(g.total), g.ledgers);
+    });
     html += line('Sales &ndash; Service line', formatINR(x2));
     html += line('Grant &amp; Other Income', formatINR(x3), data.grantIncomeBreakdown);
     html += total('= Total Income', formatINR(l.totalIncome));
