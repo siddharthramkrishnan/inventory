@@ -355,67 +355,83 @@
     const l = data.lines;
     const table = document.getElementById('pnl-table');
 
+    // Stream-wise P&L: Sales -> COGS -> Gross Profit -> Indirect expenses (layout requested by Rajesh)
+    const mix = data.incomeMix, cs = data.cogsByStream, t = data.tally, os = data.overheadSplit;
+    const x1 = mix ? mix.products.total : l.salesRevenue;
+    const x2 = mix ? mix.services.total : 0;
+    const x3 = mix ? mix.grants.total : l.grantIncome;
+    const y1 = cs ? cs.products.total : l.cogs;
+    const y3 = cs ? cs.grants.total : 0;
+    const yUn = cs ? cs.unassigned.total : 0;
+    const red = '#c0392b';
+    let rowSeq = 0;
+    const hdr = function (label) {
+      return '<tr><td></td><td colspan="2" style="font-weight:600;background:#f5f7fa;padding-top:10px;">' + label + '</td></tr>';
+    };
+    const line = function (label, amount, rows, color) {
+      const id = 'pnl-x-' + (rowSeq++);
+      const can = rows && rows.length > 0;
+      let h = '<tr><td style="width:20px;">' + (can
+        ? '<span class="pnl-expand-arrow" data-target="' + id + '" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
+        + '</td><td style="padding-left:12px;">' + label + '</td><td class="num"' + (color ? ' style="color:' + color + ';"' : '') + '>' + amount + '</td></tr>';
+      if (can) h += '<tr id="' + id + '" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(rows) + '</td></tr>';
+      return h;
+    };
+    const total = function (label, amount, color) {
+      return '<tr class="total-row"><td></td><td>' + label + '</td><td class="num"' + (color ? ' style="color:' + color + ';"' : '') + '>' + amount + '</td></tr>';
+    };
+    const deptRows = function (s) {
+      return ((s && s.depts) || []).map(function (d) { return { ledger: d.name, total: d.total }; });
+    };
+    const notTracked = '<span style="color:#999;">not tracked in Tally</span>';
+    const sgn = function (v) { return v < 0 ? red : ''; };
+
     let html = '<tr><th></th><th>Line Item</th><th class="num">Amount (INR)</th></tr>';
 
-    // Grant & Other Income (now shown FIRST, above Sales -- per Bhupal/Katti decision)
-    const hasGrantBreakdown = data.grantIncomeBreakdown && data.grantIncomeBreakdown.length > 0;
-    html += '<tr><td style="width:20px;">' + (hasGrantBreakdown
-      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-grant" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
-      + '</td><td>Grant &amp; Other Income</td><td class="num">' + formatINR(l.grantIncome) + '</td></tr>';
-    if (hasGrantBreakdown) {
-      html += '<tr id="pnl-detail-grant" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.grantIncomeBreakdown) + '</td></tr>';
+    html += hdr('Income');
+    html += line('Sales &ndash; Manufacturing (kits)', formatINR(x1));
+    html += line('Sales &ndash; Service line', formatINR(x2));
+    html += line('Grant &amp; Other Income', formatINR(x3), data.grantIncomeBreakdown);
+    html += total('= Total Income', formatINR(l.totalIncome));
+
+    html += hdr('COGS (purchases + direct expenses)');
+    html += line('COGS &ndash; Manufacturing', formatINR(y1), deptRows(cs && cs.products));
+    html += line('COGS &ndash; Service', notTracked);
+    html += line('COGS &ndash; Grants', formatINR(y3), deptRows(cs && cs.grants));
+    if (yUn) html += line('COGS &ndash; Not assigned to a stream', formatINR(yUn), deptRows(cs.unassigned));
+    html += total('= Total COGS', formatINR(l.cogs));
+
+    html += hdr('Gross profit');
+    html += line('GP &ndash; Manufacturing', formatINR(x1 - y1), null, sgn(x1 - y1));
+    html += line('GP &ndash; Service', formatINR(x2), null);
+    html += line('GP &ndash; Grants', formatINR(x3 - y3), null, sgn(x3 - y3));
+    if (yUn) html += line('Not assigned (cost only)', formatINR(-yUn), null, red);
+    const gpTotal = l.totalIncome - l.cogs;
+    html += total('= Gross Profit', formatINR(gpTotal), sgn(gpTotal));
+
+    html += hdr('Indirect expenses');
+    if (os) {
+      html += line('Salary', formatINR(os.salary));
+      html += line('Travel', formatINR(os.travel));
+      html += line('Consultancy', formatINR(os.consultancy));
+      html += line('Overheads (OH)', formatINR(os.overheads));
     }
-
-    // Sales Revenue
-    const hasSalesBreakdown = data.salesRevenueBreakdown && data.salesRevenueBreakdown.length > 0;
-    html += '<tr><td style="width:20px;">' + (hasSalesBreakdown
-      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-sales" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
-      + '</td><td>Sales Revenue</td><td class="num">' + formatINR(l.salesRevenue) + '</td></tr>';
-    if (hasSalesBreakdown) {
-      html += '<tr id="pnl-detail-sales" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.salesRevenueBreakdown) + '</td></tr>';
-    }
-
-    // Total Income subtotal
-    html += '<tr class="total-row"><td></td><td>= Total Income</td><td class="num">' + formatINR(l.totalIncome) + '</td></tr>';
-
-    // Cost of Sales -- laid out the way Tally's Profit & Loss shows it
-    const hasCogsBreakdown = data.cogsBreakdown && data.cogsBreakdown.length > 0;
-    const t = data.tally;
-    if (t) {
-      html += '<tr><td></td><td style="font-weight:600;">Cost of Sales (as in Tally)</td><td></td></tr>';
-      html += '<tr><td></td><td style="padding-left:24px;">Opening Stock</td><td class="num">' + formatINR(t.openingStock) + '</td></tr>';
-      html += '<tr><td></td><td style="padding-left:24px;">Add: Purchases</td><td class="num">' + formatINR(t.purchases) + '</td></tr>';
-      html += '<tr><td></td><td style="padding-left:24px;">Less: Closing Stock</td><td class="num">(' + formatINR(t.closingStock) + ')</td></tr>';
-      html += '<tr><td style="width:20px;">' + (hasCogsBreakdown
-        ? '<span class="pnl-expand-arrow" data-target="pnl-detail-cogs" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
-        + '</td><td style="padding-left:24px;">Add: Direct Expenses</td><td class="num">' + formatINR(t.directExpenses) + '</td></tr>';
-      if (hasCogsBreakdown) {
-        html += '<tr id="pnl-detail-cogs" style="display:none;"><td></td><td colspan="2"><div style="font-size:11px;color:#777;">Purchases and direct expense ledgers</div>' + renderBreakdownSubtable(data.cogsBreakdown) + '</td></tr>';
-      }
-      html += '<tr class="total-row"><td></td><td>= Cost of Sales</td><td class="num">' + formatINR(-t.costOfSales) + '</td></tr>';
-      html += '<tr><td></td><td colspan="2" style="font-size:11px;color:#777;">Of this, stock movement (opening less closing stock) is ' + formatINR(t.stockMovement)
-        + '; purchases plus direct expenses is ' + formatINR(t.purchases + t.directExpenses) + '. Profit before stock movement would be ' + formatINR(t.netBeforeStock) + '.</td></tr>';
-    } else {
-      html += '<tr><td style="width:20px;">' + (hasCogsBreakdown
-        ? '<span class="pnl-expand-arrow" data-target="pnl-detail-cogs" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
-        + '</td><td>(–) COGS / Direct Costs</td><td class="num">' + formatINR(-l.cogs) + '</td></tr>';
-      if (hasCogsBreakdown) {
-        html += '<tr id="pnl-detail-cogs" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.cogsBreakdown) + '</td></tr>';
-      }
-    }
-
-    // Overhead (separate line, one-level expand to category totals, lazy-loaded)
-    html += '<tr><td style="width:20px;">'
+    html += '<tr class="total-row"><td style="width:20px;">'
       + '<span class="pnl-expand-arrow" id="pnl-overhead-expand-arrow" data-target="pnl-detail-overhead" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>'
-      + '</td><td>(–) Indirect Expense</td><td class="num">' + formatINR(-l.overhead) + '</td></tr>';
+      + '</td><td>= Indirect Expenses (click for ledger detail)</td><td class="num">' + formatINR(l.overhead) + '</td></tr>';
     html += '<tr id="pnl-detail-overhead" style="display:none;"><td></td><td colspan="2">'
       + '<div id="pnl-overhead-category-loading" style="font-size:12px;color:#999;padding:8px 0;">Loading category breakdown…</div>'
       + '<div id="pnl-overhead-category-table"></div>'
       + '</td></tr>';
 
-    // Net Profit/Loss (straight from Total Income, no separate Operating P&L step)
-    const netColor = l.netPnl < 0 ? 'color:#c0392b;' : '';
-    html += '<tr class="total-row"><td></td><td>= Net Profit / Loss</td><td class="num" style="' + netColor + '">' + formatINR(l.netPnl) + '</td></tr>';
+    const netBefore = gpTotal - l.overhead;
+    if (t) {
+      html += total('= Net Profit / Loss before stock movement', formatINR(netBefore), sgn(netBefore));
+      html += line('Less: stock movement (Opening Stock ' + formatINR(t.openingStock) + ' less Closing Stock ' + formatINR(t.closingStock) + ', as in Tally)', formatINR(-t.stockMovement), null, red);
+      html += total('= Net Profit / Loss (as in Tally)', formatINR(l.netPnl), sgn(l.netPnl));
+    } else {
+      html += total('= Net Profit / Loss', formatINR(l.netPnl), sgn(l.netPnl));
+    }
 
     table.innerHTML = html;
 
