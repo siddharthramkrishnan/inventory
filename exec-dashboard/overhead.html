@@ -525,6 +525,20 @@
     const swatch = function (color) {
       return '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:7px;vertical-align:-1px;background:' + color + ';"></span>';
     };
+    // Expandable breakdown: department > category > individual cost ledgers.
+    const costDetail = function (depts) {
+      if (!depts || !depts.length) return '';
+      let h = '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:#2a78d6;">Show breakdown</summary>';
+      depts.forEach(function (d) {
+        h += '<div style="font-size:12px;font-weight:600;margin-top:10px;">' + escHtml(d.name) + ' &middot; ' + formatINR(d.total) + '</div>';
+        (d.subs || []).forEach(function (s) {
+          h += '<details style="margin:4px 0 0 10px;"><summary style="cursor:pointer;font-size:12px;">'
+            + escHtml(s.name) + ' &middot; ' + formatINR(s.total) + '</summary>'
+            + renderBreakdownSubtable(s.lines || []) + '</details>';
+        });
+      });
+      return h + '</details>';
+    };
     let costTiles = '';
     if (cs) {
       const tile = function (color, label, value, note, extra) {
@@ -537,10 +551,10 @@
         + '<b style="color:' + (prodResult < 0 ? '#c0392b' : '#1e7e34') + ';">' + fmtLakh(prodResult / 1e5) + '</b></div>';
       costTiles = '<h3 style="font-size:14px;font-weight:600;margin:24px 0 0 0;">Direct costs (COGS)</h3>'
         + '<div class="kpi-grid" style="margin:10px 0 0 0;">'
-        + tile(parts[0].color, 'Products', fmtLakh(cs.products.total / 1e5), 'Manufacturing and common inventory materials', prodExtra)
+        + tile(parts[0].color, 'Products', fmtLakh(cs.products.total / 1e5), 'Manufacturing and common inventory materials', prodExtra + costDetail(cs.products.depts))
         + tile(parts[1].color, 'Services', '&mdash;', 'Not tracked in Tally')
-        + tile(parts[2].color, 'Grants', fmtLakh(cs.grants.total / 1e5), 'R&amp;D and engineering materials')
-        + (cs.unassigned.total ? tile('#d5d9de', 'Not assigned', fmtLakh(cs.unassigned.total / 1e5), 'General supplies and general transport') : '')
+        + tile(parts[2].color, 'Grants', fmtLakh(cs.grants.total / 1e5), 'R&amp;D and engineering materials', costDetail(cs.grants.depts))
+        + (cs.unassigned.total ? tile('#d5d9de', 'Not assigned', fmtLakh(cs.unassigned.total / 1e5), 'General supplies and general transport', costDetail(cs.unassigned.depts)) : '')
         + '</div>';
     }
     const sales = mix.products.total + mix.services.total;
