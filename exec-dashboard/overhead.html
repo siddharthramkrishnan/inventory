@@ -471,24 +471,35 @@
     }
     panel.style.display = '';
     const parts = [
-      { key: 'products', name: 'Products', sub: 'Kits, cartridges and readers sold', color: '#2a78d6' },
-      { key: 'services', name: 'Services', sub: 'Development work for other organisations', color: '#178f7b' },
-      { key: 'grants',   name: 'Grants',   sub: 'Grant funding received', color: '#b7791f' }
+      { key: 'products', name: 'Products', sub: 'Kits, cartridges and readers sold', color: '#1f6fd0' },
+      { key: 'services', name: 'Services', sub: 'Development work for other organisations', color: '#e08a00' },
+      { key: 'grants',   name: 'Grants',   sub: 'Grant funding received', color: '#9aa3ad' }
     ];
+    const earned = mix.products.total + mix.services.total;
+    const seg = function (p, w) {
+      return w > 0 ? '<div title="' + p.name + '" style="width:' + w + '%;background:' + p.color + ';"></div>' : '';
+    };
+    const barStyle = 'display:flex;height:22px;border-radius:6px;overflow:hidden;background:#eee;';
+    const barLabel = 'font-size:12px;color:#666;margin:14px 0 6px 0;';
+    // Bar 1: everything. Bar 2: earned income only, so products vs services is readable.
+    const bar1 = '<div style="' + barLabel + '">All income</div><div style="' + barStyle + '">'
+      + parts.map(function (p) { return seg(p, Math.max(mix.total ? mix[p.key].total / mix.total * 100 : 0, mix[p.key].total > 0 ? 0.8 : 0)); }).join('')
+      + '</div>';
+    const bar2 = earned > 0
+      ? '<div style="' + barLabel + '">Earned income only (excludes grants)</div><div style="' + barStyle + '">'
+        + seg(parts[0], mix.products.total / earned * 100) + seg(parts[1], mix.services.total / earned * 100)
+        + '</div>'
+      : '';
     const pct = function (v) { return mix.total ? (v / mix.total * 100) : 0; };
-    let bar = '<div style="display:flex;height:26px;border-radius:6px;overflow:hidden;background:#eee;" role="img" aria-label="Income split">';
-    parts.forEach(function (p) {
-      const w = pct(mix[p.key].total);
-      if (w > 0) bar += '<div title="' + p.name + ' ' + w.toFixed(1) + '%" style="width:' + Math.max(w, 0.8) + '%;background:' + p.color + ';"></div>';
-    });
-    bar += '</div>';
+    const bar = bar1 + bar2;
     let cards = '<div class="kpi-grid" style="margin:16px 0 0 0;">';
     parts.forEach(function (p) {
       const m = mix[p.key];
-      cards += '<div class="kpi-card" style="border-top:3px solid ' + p.color + ';">'
-        + '<div class="kpi-label">' + p.name + '</div>'
+      cards += '<div class="kpi-card">'
+        + '<div class="kpi-label"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:7px;vertical-align:-1px;background:' + p.color + ';"></span>' + p.name + '</div>'
         + '<div class="kpi-value">' + fmtLakh(m.total / 1e5) + '</div>'
-        + '<div class="kpi-note" style="color:#666;">' + pct(m.total).toFixed(1) + '% of total income</div>'
+        + '<div class="kpi-note" style="color:#666;">' + pct(m.total).toFixed(1) + '% of total income'
+        + (p.key !== 'grants' && earned > 0 ? ' &middot; ' + (m.total / earned * 100).toFixed(0) + '% of earned income' : '') + '</div>'
         + '<div class="kpi-note">' + p.sub + '</div>'
         + (m.items.length ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:#2a78d6;">Show ledgers</summary>'
           + renderBreakdownSubtable(m.items) + '</details>' : '')
