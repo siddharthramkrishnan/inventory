@@ -506,7 +506,7 @@
       }
       return '<div style="' + row + '">Spent on R&amp;D and engineering materials: <b>' + fmtLakh(cs.grants.total / 1e5) + '</b></div>';
     };
-    let cards = '<div class="kpi-grid" style="margin:16px 0 0 0;">';
+    let cards = '<h3 style="font-size:14px;font-weight:600;margin:24px 0 0 0;">Income</h3><div class="kpi-grid" style="margin:10px 0 0 0;">';
     parts.forEach(function (p) {
       const m = mix[p.key];
       cards += '<div class="kpi-card">'
@@ -515,12 +515,34 @@
         + '<div class="kpi-note" style="color:#666;">' + pct(m.total).toFixed(1) + '% of total income'
         + (p.key !== 'grants' && earned > 0 ? ' &middot; ' + (m.total / earned * 100).toFixed(0) + '% of earned income' : '') + '</div>'
         + '<div class="kpi-note">' + p.sub + '</div>'
-        + costLine(p.key, m)
+
         + (m.items.length ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:#2a78d6;">Show ledgers</summary>'
           + renderBreakdownSubtable(m.items) + '</details>' : '')
         + '</div>';
     });
     cards += '</div>';
+    // Separate row of tiles: direct cost (COGS) per stream.
+    const swatch = function (color) {
+      return '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:7px;vertical-align:-1px;background:' + color + ';"></span>';
+    };
+    let costTiles = '';
+    if (cs) {
+      const tile = function (color, label, value, note, extra) {
+        return '<div class="kpi-card"><div class="kpi-label">' + swatch(color) + label + '</div>'
+          + '<div class="kpi-value">' + value + '</div>'
+          + '<div class="kpi-note">' + note + '</div>' + (extra || '') + '</div>';
+      };
+      const prodResult = mix.products.total - cs.products.total;
+      const prodExtra = '<div style="font-size:12px;margin-top:10px;padding-top:8px;border-top:1px solid #eee;color:#444;">Sales minus direct cost: '
+        + '<b style="color:' + (prodResult < 0 ? '#c0392b' : '#1e7e34') + ';">' + fmtLakh(prodResult / 1e5) + '</b></div>';
+      costTiles = '<h3 style="font-size:14px;font-weight:600;margin:24px 0 0 0;">Direct costs (COGS)</h3>'
+        + '<div class="kpi-grid" style="margin:10px 0 0 0;">'
+        + tile(parts[0].color, 'Products', fmtLakh(cs.products.total / 1e5), 'Manufacturing and common inventory materials', prodExtra)
+        + tile(parts[1].color, 'Services', '&mdash;', 'Not tracked in Tally')
+        + tile(parts[2].color, 'Grants', fmtLakh(cs.grants.total / 1e5), 'R&amp;D and engineering materials')
+        + (cs.unassigned.total ? tile('#d5d9de', 'Not assigned', fmtLakh(cs.unassigned.total / 1e5), 'General supplies and general transport') : '')
+        + '</div>';
+    }
     const sales = mix.products.total + mix.services.total;
     const note = '<div class="kpi-note" style="margin-top:12px;">Earned income from customers (products + services) is '
       + fmtLakh(sales / 1e5) + ', or ' + pct(sales).toFixed(1) + '% of total income. Grants are counted as income when received.</div>';
@@ -529,7 +551,7 @@
         + (cs.unassigned.total ? fmtLakh(cs.unassigned.total / 1e5) + ' (general supplies and transport) is not assigned to any stream. ' : '')
         + 'Total direct cost ' + fmtLakh((cs.total || 0) / 1e5) + '.</div>'
       : '';
-    panel.innerHTML = '<h2>Where our income comes from (YTD)</h2>' + bar + cards + note + costNote;
+    panel.innerHTML = '<h2>Where our income comes from (YTD)</h2>' + bar + cards + costTiles + note + costNote;
   }
 
   function renderBreakdownSubtable(rows) {
