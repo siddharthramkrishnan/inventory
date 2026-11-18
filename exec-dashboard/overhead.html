@@ -378,13 +378,30 @@
     // Total Income subtotal
     html += '<tr class="total-row"><td></td><td>= Total Income</td><td class="num">' + formatINR(l.totalIncome) + '</td></tr>';
 
-    // COGS
+    // Cost of Sales -- laid out the way Tally's Profit & Loss shows it
     const hasCogsBreakdown = data.cogsBreakdown && data.cogsBreakdown.length > 0;
-    html += '<tr><td style="width:20px;">' + (hasCogsBreakdown
-      ? '<span class="pnl-expand-arrow" data-target="pnl-detail-cogs" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
-      + '</td><td>(–) COGS / Direct Costs</td><td class="num">' + formatINR(-l.cogs) + '</td></tr>';
-    if (hasCogsBreakdown) {
-      html += '<tr id="pnl-detail-cogs" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.cogsBreakdown) + '</td></tr>';
+    const t = data.tally;
+    if (t) {
+      html += '<tr><td></td><td style="font-weight:600;">Cost of Sales (as in Tally)</td><td></td></tr>';
+      html += '<tr><td></td><td style="padding-left:24px;">Opening Stock</td><td class="num">' + formatINR(t.openingStock) + '</td></tr>';
+      html += '<tr><td></td><td style="padding-left:24px;">Add: Purchases</td><td class="num">' + formatINR(t.purchases) + '</td></tr>';
+      html += '<tr><td></td><td style="padding-left:24px;">Less: Closing Stock</td><td class="num">(' + formatINR(t.closingStock) + ')</td></tr>';
+      html += '<tr><td style="width:20px;">' + (hasCogsBreakdown
+        ? '<span class="pnl-expand-arrow" data-target="pnl-detail-cogs" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
+        + '</td><td style="padding-left:24px;">Add: Direct Expenses</td><td class="num">' + formatINR(t.directExpenses) + '</td></tr>';
+      if (hasCogsBreakdown) {
+        html += '<tr id="pnl-detail-cogs" style="display:none;"><td></td><td colspan="2"><div style="font-size:11px;color:#777;">Purchases and direct expense ledgers</div>' + renderBreakdownSubtable(data.cogsBreakdown) + '</td></tr>';
+      }
+      html += '<tr class="total-row"><td></td><td>= Cost of Sales</td><td class="num">' + formatINR(-t.costOfSales) + '</td></tr>';
+      html += '<tr><td></td><td colspan="2" style="font-size:11px;color:#777;">Of this, stock movement (opening less closing stock) is ' + formatINR(t.stockMovement)
+        + '; purchases plus direct expenses is ' + formatINR(t.purchases + t.directExpenses) + '. Profit before stock movement would be ' + formatINR(t.netBeforeStock) + '.</td></tr>';
+    } else {
+      html += '<tr><td style="width:20px;">' + (hasCogsBreakdown
+        ? '<span class="pnl-expand-arrow" data-target="pnl-detail-cogs" style="cursor:pointer;color:#2a78d6;font-size:12px;">▸</span>' : '')
+        + '</td><td>(–) COGS / Direct Costs</td><td class="num">' + formatINR(-l.cogs) + '</td></tr>';
+      if (hasCogsBreakdown) {
+        html += '<tr id="pnl-detail-cogs" style="display:none;"><td></td><td colspan="2">' + renderBreakdownSubtable(data.cogsBreakdown) + '</td></tr>';
+      }
     }
 
     // Overhead (separate line, one-level expand to category totals, lazy-loaded)
@@ -549,7 +566,7 @@
       const prodResult = mix.products.total - cs.products.total;
       const prodExtra = '<div style="font-size:12px;margin-top:10px;padding-top:8px;border-top:1px solid #eee;color:#444;">Sales minus direct cost: '
         + '<b style="color:' + (prodResult < 0 ? '#c0392b' : '#1e7e34') + ';">' + fmtLakh(prodResult / 1e5) + '</b></div>';
-      costTiles = '<h3 style="font-size:14px;font-weight:600;margin:24px 0 0 0;">Direct costs (COGS)</h3>'
+      costTiles = '<h3 style="font-size:14px;font-weight:600;margin:24px 0 0 0;">Direct costs (purchases + direct expenses)</h3>'
         + '<div class="kpi-grid" style="margin:10px 0 0 0;">'
         + tile(parts[0].color, 'Products', fmtLakh(cs.products.total / 1e5), 'Manufacturing and common inventory materials', prodExtra + costDetail(cs.products.depts))
         + tile(parts[1].color, 'Services', '&mdash;', 'Not tracked in Tally')
@@ -563,7 +580,7 @@
     const costNote = cs
       ? '<div class="kpi-note" style="margin-top:6px;">Direct costs are assigned by department code: Manufacturing and Common inventory go to Products; R&amp;D and Engineering go to Grants. '
         + (cs.unassigned.total ? fmtLakh(cs.unassigned.total / 1e5) + ' (general supplies and transport) is not assigned to any stream. ' : '')
-        + 'Total direct cost ' + fmtLakh((cs.total || 0) / 1e5) + '.</div>'
+        + 'Total ' + fmtLakh((cs.total || 0) / 1e5) + '. This excludes the opening and closing stock movement, which is shown in the Cost of Sales table above.</div>'
       : '';
     panel.innerHTML = '<h2>Where our income comes from (YTD)</h2>' + bar + cards + costTiles + note + costNote;
   }
