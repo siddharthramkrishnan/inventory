@@ -360,6 +360,7 @@
     const x1 = mix ? mix.products.total : l.salesRevenue;
     const x2 = mix ? mix.services.total : 0;
     const x3 = mix ? mix.grants.total : l.grantIncome;
+    const x4 = mix && mix.other ? mix.other.total : 0;
     const y1 = cs ? cs.products.total : l.cogs;
     const y3 = cs ? cs.grants.total : 0;
     const yUn = cs ? cs.unassigned.total : 0;
@@ -395,7 +396,8 @@
       html += line('<span style="color:#666;padding-left:18px;">of which ' + g.name + (g.name === 'Cartridge' ? ' <span style="font-size:11px;color:#999;">(Tally groups this ledger under Sales &ndash; Service)</span>' : '') + '</span>', formatINR(g.total), g.ledgers);
     });
     html += line('Sales &ndash; Service line', formatINR(x2));
-    html += line('Grant &amp; Other Income', formatINR(x3), data.grantIncomeBreakdown);
+    html += line('Grant Income', formatINR(x3), mix ? mix.grants.items : data.grantIncomeBreakdown);
+    html += line('Other Income', formatINR(x4), mix && mix.other ? mix.other.items : null);
     html += total('= Total Income', formatINR(l.totalIncome));
 
     html += hdr('COGS (purchases + direct expenses)');
@@ -410,6 +412,7 @@
     html += line('GP &ndash; Manufacturing', formatINR(x1 - y1), null, sgn(x1 - y1));
     html += line('GP &ndash; Service', formatINR(x2), null);
     html += line('GP &ndash; Grants', formatINR(x3 - y3), null, sgn(x3 - y3));
+    html += line('Other Income (no direct cost)', formatINR(x4), null);
     if (yCm) html += line('Common inventory (cost only, not allocated)', formatINR(-yCm), null, red);
     if (yUn) html += line('General (cost only, not assigned)', formatINR(-yUn), null, red);
     const gpTotal = l.totalIncome - l.cogs;
@@ -509,10 +512,12 @@
       content.insertBefore(panel, content.firstElementChild);
     }
     panel.style.display = '';
+    mix.other = mix.other || { total: 0, items: [] };
     const parts = [
       { key: 'products', name: 'Products', sub: 'Kits, cartridges and readers sold', color: '#1f6fd0' },
       { key: 'services', name: 'Services', sub: 'Development work for other organisations', color: '#e08a00' },
-      { key: 'grants',   name: 'Grants',   sub: 'Grant funding received', color: '#9aa3ad' }
+      { key: 'grants',   name: 'Grants',   sub: 'Grant funding received', color: '#9aa3ad' },
+      { key: 'other',    name: 'Other income', sub: 'Interest and other income that is not a grant', color: '#7a5cc0' }
     ];
     const earned = mix.products.total + mix.services.total;
     const seg = function (p, w) {
@@ -552,7 +557,7 @@
         + '<div class="kpi-label"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:7px;vertical-align:-1px;background:' + p.color + ';"></span>' + p.name + '</div>'
         + '<div class="kpi-value">' + fmtLakh(m.total / 1e5) + '</div>'
         + '<div class="kpi-note" style="color:#666;">' + pct(m.total).toFixed(1) + '% of total income'
-        + (p.key !== 'grants' && earned > 0 ? ' &middot; ' + (m.total / earned * 100).toFixed(0) + '% of earned income' : '') + '</div>'
+        + (p.key !== 'grants' && p.key !== 'other' && earned > 0 ? ' &middot; ' + (m.total / earned * 100).toFixed(0) + '% of earned income' : '') + '</div>'
         + '<div class="kpi-note">' + p.sub + '</div>'
 
         + (m.items.length ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:#2a78d6;">Show ledgers</summary>'
