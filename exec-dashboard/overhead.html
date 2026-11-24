@@ -406,7 +406,17 @@
     html += line('COGS &ndash; Grants', formatINR(y3), deptRows(cs && cs.grants));
     if (yCm) html += line('COGS &ndash; Common inventory (shared, not allocated)', formatINR(yCm), deptRows(cs.common));
     if (yUn) html += line('COGS &ndash; General (not assigned to a stream)', formatINR(yUn), deptRows(cs.unassigned));
-    html += total('= Total COGS', formatINR(l.cogs));
+    // Stock adjustment (Tally's method): cost of goods = purchases + opening stock - closing stock.
+    // Material bought but still on the shelf is not yet a cost; material used from old stock is.
+    const sm = t ? t.stockMovement : 0;
+    html += total('= Purchases + direct expenses', formatINR(l.cogs));
+    if (t) {
+      html += line('Add: Opening Stock', formatINR(t.openingStock));
+      html += line('Less: Closing Stock', '(' + formatINR(t.closingStock) + ')');
+      html += line('<span style="color:#666;">Stock adjustment (opening less closing), not allocated to a stream</span>', formatINR(sm), null, sm < 0 ? '#1e7e34' : red);
+    }
+    const cogsTotal = l.cogs + sm;
+    html += total('= Total COGS (Cost of Sales, as in Tally)', formatINR(cogsTotal));
 
     html += hdr('Gross profit');
     html += line('GP &ndash; Manufacturing', formatINR(x1 - y1), null, sgn(x1 - y1));
@@ -415,7 +425,8 @@
     html += line('Other Income (no direct cost)', formatINR(x4), null);
     if (yCm) html += line('Common inventory (cost only, not allocated)', formatINR(-yCm), null, red);
     if (yUn) html += line('General (cost only, not assigned)', formatINR(-yUn), null, red);
-    const gpTotal = l.totalIncome - l.cogs;
+    if (t && sm) html += line('Stock adjustment (not allocated)', formatINR(-sm), null, sm > 0 ? red : '#1e7e34');
+    const gpTotal = l.totalIncome - cogsTotal;
     html += total('= Gross Profit', formatINR(gpTotal), sgn(gpTotal));
 
     html += hdr('Indirect expenses');
@@ -433,14 +444,8 @@
       + '<div id="pnl-overhead-category-table"></div>'
       + '</td></tr>';
 
-    const netBefore = gpTotal - l.overhead;
-    if (t) {
-      html += total('= Net Profit / Loss before stock movement', formatINR(netBefore), sgn(netBefore));
-      html += line('Less: stock movement (Opening Stock ' + formatINR(t.openingStock) + ' less Closing Stock ' + formatINR(t.closingStock) + ', as in Tally)', formatINR(-t.stockMovement), null, red);
-      html += total('= Net Profit / Loss (as in Tally)', formatINR(l.netPnl), sgn(l.netPnl));
-    } else {
-      html += total('= Net Profit / Loss', formatINR(l.netPnl), sgn(l.netPnl));
-    }
+    const net = gpTotal - l.overhead;
+    html += total('= Net Profit / Loss', formatINR(net), sgn(net));
 
     table.innerHTML = html;
 
