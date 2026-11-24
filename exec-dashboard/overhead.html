@@ -408,9 +408,24 @@
     if (yUn) html += line('COGS &ndash; General (not assigned to a stream)', formatINR(yUn), deptRows(cs.unassigned));
     // Stock adjustment (Tally's method): cost of goods = purchases + opening stock - closing stock.
     // Material bought but still on the shelf is not yet a cost; material used from old stock is.
-    const sm = t ? t.stockMovement : 0;
+    const sg = (data.stockGroups || []).filter(function (g) { return g.opening || g.closing; });
+    const streamLabel = { products: 'Manufacturing', grants: 'Grants', common: 'Common inventory', unassigned: 'not assigned' };
+    const adjBy = { products: 0, grants: 0, common: 0, unassigned: 0 };
+    let sm = t ? t.stockMovement : 0;
     html += total('= Purchases + direct expenses', formatINR(l.cogs));
-    if (t) {
+    if (sg.length) {
+      sm = 0;
+      sg.forEach(function (g) {
+        const k = adjBy.hasOwnProperty(g.stream) ? g.stream : 'unassigned';
+        adjBy[k] += g.adjustment; sm += g.adjustment;
+        html += line('<span style="color:#666;">Stock adjustment &ndash; ' + g.group + ' (to ' + streamLabel[k] + ')</span>',
+          formatINR(g.adjustment),
+          [{ ledger: 'Opening stock (1 Apr)', total: g.opening }, { ledger: 'Closing stock (today)', total: g.closing }],
+          g.adjustment < 0 ? '#1e7e34' : red);
+      });
+      html += line('Total stock adjustment (opening ' + formatINR(t ? t.openingStock : 0) + ' less closing ' + formatINR(t ? t.closingStock : 0) + ')', formatINR(sm), null, sm < 0 ? '#1e7e34' : red);
+    } else if (t) {
+      adjBy.unassigned = sm;
       html += line('Add: Opening Stock', formatINR(t.openingStock));
       html += line('Less: Closing Stock', '(' + formatINR(t.closingStock) + ')');
       html += line('<span style="color:#666;">Stock adjustment (opening less closing), not allocated to a stream</span>', formatINR(sm), null, sm < 0 ? '#1e7e34' : red);
@@ -419,13 +434,14 @@
     html += total('= Total COGS (Cost of Sales, as in Tally)', formatINR(cogsTotal));
 
     html += hdr('Gross profit');
-    html += line('GP &ndash; Manufacturing', formatINR(x1 - y1), null, sgn(x1 - y1));
+    const gpM = x1 - y1 - adjBy.products, gpG = x3 - y3 - adjBy.grants;
+    const cmC = -yCm - adjBy.common, unC = -yUn - adjBy.unassigned;
+    html += line('GP &ndash; Manufacturing', formatINR(gpM), null, sgn(gpM));
     html += line('GP &ndash; Service', formatINR(x2), null);
-    html += line('GP &ndash; Grants', formatINR(x3 - y3), null, sgn(x3 - y3));
+    html += line('GP &ndash; Grants', formatINR(gpG), null, sgn(gpG));
     html += line('Other Income (no direct cost)', formatINR(x4), null);
-    if (yCm) html += line('Common inventory (cost only, not allocated)', formatINR(-yCm), null, red);
-    if (yUn) html += line('General (cost only, not assigned)', formatINR(-yUn), null, red);
-    if (t && sm) html += line('Stock adjustment (not allocated)', formatINR(-sm), null, sm > 0 ? red : '#1e7e34');
+    if (yCm || adjBy.common) html += line('Common inventory (cost after stock adjustment, not allocated)', formatINR(cmC), null, sgn(cmC));
+    if (yUn || adjBy.unassigned) html += line('Not assigned to a stream (incl. stock adjustment)', formatINR(unC), null, sgn(unC));
     const gpTotal = l.totalIncome - cogsTotal;
     html += total('= Gross Profit', formatINR(gpTotal), sgn(gpTotal));
 
