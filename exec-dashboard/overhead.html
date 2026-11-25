@@ -151,6 +151,20 @@
     display: none;
   }
   #loading { text-align: center; color: #999; padding: 60px 0; font-size: 14px; display: none; }
+
+  table.tv { width:100%; border-collapse:collapse; font-size:13px; }
+  table.tv th { text-align:left; font-size:11px; color:#666; border-bottom:2px solid #ddd; padding:6px 8px; }
+  table.tv td { padding:6px 8px; vertical-align:top; border-bottom:1px solid #f0f0f0; }
+  table.tv td.tv-mid, table.tv th.tv-mid { width:12px; border-left:1px solid #ccc; border-bottom:none; padding:0; }
+  table.tv td.tv-lab { width:34%; }
+  table.tv tr.tv-tot td { border-top:1px solid #999; border-bottom:2px solid #999; font-weight:600; }
+  table.tv summary { list-style:none; }
+  table.tv summary::-webkit-details-marker { display:none; }
+  table.tv summary::before { content:'\25B8  '; color:#2a78d6; font-size:11px; }
+  table.tv details[open] summary::before { content:'\25BE  '; }
+  table.tv-sub { width:100%; margin:6px 0 4px 0; background:#fafafa; font-size:12px; }
+  table.tv-sub td { padding:3px 6px; border-bottom:1px solid #eee; }
+  table.tv-sub tr.tv-grp td { font-weight:600; }
 </style>
 </head>
 <body>
@@ -480,6 +494,7 @@
     });
 
     renderIncomeMix(data.incomeMix, data.cogsByStream);
+    renderTallyView(data);
 
     document.getElementById('pnl-overhead-pct').textContent =
       data.overheadPctSalesRevenue !== null ? data.overheadPctSalesRevenue.toFixed(1) + '%' : '—';
@@ -632,6 +647,115 @@
         + 'Total ' + fmtLakh((cs.total || 0) / 1e5) + '. This excludes the opening and closing stock movement, which is shown in the Cost of Sales table above.</div>'
       : '';
     panel.innerHTML = '<h2>Where our income comes from (YTD)</h2>' + bar + cards + costTiles + note + costNote;
+  }
+
+  // ---- Tally view: the Profit & Loss A/c laid out exactly as TallyPrime shows it ----
+  // Two sides (left = expenses, right = income), trading block on top, profit block below.
+  function renderTallyView(data) {
+    const content = document.getElementById('pnl-content');
+    let panel = document.getElementById('tally-view-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'panel';
+      panel.id = 'tally-view-panel';
+      const pnlPanel = document.getElementById('pnl-table').closest('.panel');
+      if (pnlPanel && pnlPanel.parentNode) pnlPanel.parentNode.insertBefore(panel, pnlPanel.nextSibling);
+      else content.appendChild(panel);
+    }
+    const t = data.tally, l = data.lines;
+    if (!t) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+    const all = data.allLedgers || [];
+    const sumP = function (p) { return all.filter(function (x) { return x.primary === p; }).reduce(function (s, x) { return s + x.total; }, 0); };
+    const directInc = all.length ? sumP('Direct Incomes') : l.grantIncome;
+    const indirectInc = all.length ? sumP('Indirect Incomes') : 0;
+    const salesAcc = l.salesRevenue;
+
+    // Drill-down like pressing Enter in Tally: primary group -> parent group -> ledgers.
+    const esc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+    const drill = function (primary) {
+      const rows = all.filter(function (x) { return x.primary === primary; });
+      if (!rows.length) return '';
+      const byParent = {};
+      rows.forEach(function (x) { (byParent[x.parent] = byParent[x.parent] || []).push(x); });
+      let h = '<table class="tv-sub">';
+      Object.keys(byParent).map(function (p) {
+        return { p: p, list: byParent[p], tot: byParent[p].reduce(function (s, x) { return s + x.total; }, 0) };
+      }).sort(function (a, b) { return b.tot - a.tot; }).forEach(function (g) {
+        const single = g.list.length === 1 && g.list[0].ledger === g.p;
+        h += '<tr class="tv-grp"><td>' + esc(g.p) + '</td><td class="num">' + formatINR(g.tot) + '</td></tr>';
+        if (!single) g.list.sort(function (a, b) { return b.total - a.total; }).forEach(function (x) {
+          h += '<tr><td style="padding-left:16px;color:#555;">' + esc(x.ledger) + '</td><td class="num" style="color:#555;">' + formatINR(x.total) + '</td></tr>';
+        });
+      });
+      return h + '</table>';
+    };
+    const stockDrill = function (key) {
+      const sg = (data.stockGroups || []).filter(function (g) { return g[key]; });
+      if (!sg.length) return '';
+      return '<table class="tv-sub">' + sg.map(function (g) {
+        return '<tr><td>' + esc(g.group) + '</td><td class="num">' + formatINR(g[key]) + '</td></tr>';
+      }).join('') + '</table>';
+    };
+    const item = function (label, amt, detail, italic) { return { label: label, amt: amt, detail: detail || '', italic: !!italic }; };
+    const cell = function (it) {
+      if (!it) return '<td></td><td></td>';
+      const lab = it.italic ? '<i>' + it.label + '</i>' : '<b>' + it.label + '</b>';
+      const labHtml = it.detail
+        ? '<details><summary style="cursor:pointer;">' + lab + '</summary>' + it.detail + '</details>'
+        : lab;
+      return '<td class="tv-lab">' + labHtml + '</td><td class="num tv-amt">' + (it.italic ? '<i>' + formatINR(it.amt) + '</i>' : formatINR(it.amt)) + '</td>';
+    };
+    const block = function (left, right, totalL, totalR) {
+      const n = Math.max(left.length, right.length);
+      let h = '';
+      for (let i = 0; i < n; i++) h += '<tr>' + cell(left[i]) + '<td class="tv-mid"></td>' + cell(right[i]) + '</tr>';
+      if (totalL !== null) h += '<tr class="tv-tot"><td></td><td class="num">' + formatINR(totalL) + '</td><td class="tv-mid"></td><td></td><td class="num">' + formatINR(totalR) + '</td></tr>';
+      return h;
+    };
+
+    // Trading block
+    const leftT = [
+      item('Opening Stock', t.openingStock, stockDrill('opening')),
+      item('Purchase Accounts', t.purchases, drill('Purchase Accounts')),
+      item('Direct Expenses', t.directExpenses, drill('Direct Expenses'))
+    ];
+    const rightT = [
+      item('Sales Accounts', salesAcc, drill('Sales Accounts')),
+      item('Direct Incomes', directInc, drill('Direct Incomes')),
+      item('Closing Stock', t.closingStock, stockDrill('closing'))
+    ];
+    const debitT = t.openingStock + t.purchases + t.directExpenses;
+    const creditT = salesAcc + directInc + t.closingStock;
+    const gp = creditT - debitT;
+    if (gp >= 0) leftT.push(item('Gross Profit c/o', gp, '', true));
+    else rightT.push(item('Gross Loss c/o', -gp, '', true));
+    const tradeTotal = Math.max(debitT, creditT);
+
+    // Profit block
+    const leftP = [item('Indirect Expenses', l.overhead, drill('Indirect Expenses'))];
+    const rightP = [];
+    if (gp >= 0) rightP.push(item('Gross Profit b/f', gp, '', true)); else leftP.unshift(item('Gross Loss b/f', -gp, '', true));
+    if (indirectInc) rightP.push(item('Indirect Incomes', indirectInc, drill('Indirect Incomes')));
+    const net = gp + indirectInc - l.overhead;
+    if (net >= 0) leftP.push(item('Nett Profit', net, '', true)); else rightP.push(item('Nett Loss', -net, '', true));
+    const sumAmt = function (arr) { return arr.reduce(function (s, x) { return s + x.amt; }, 0); };
+
+    let h = '<h2 style="margin-bottom:4px;">Profit &amp; Loss A/c &mdash; Tally view</h2>'
+      + '<div class="kpi-note" style="margin-bottom:10px;">Same layout as TallyPrime (Gateway of Tally &rarr; Profit &amp; Loss A/c), 1 Apr to date. Click a line to see its groups and ledgers.</div>'
+      + '<table class="tv">'
+      + '<tr><th>Particulars</th><th class="num">Amount (INR)</th><th class="tv-mid"></th><th>Particulars</th><th class="num">Amount (INR)</th></tr>'
+      + block(leftT, rightT, tradeTotal, tradeTotal)
+      + '<tr><td colspan="5" style="height:10px;border:none;"></td></tr>'
+      + block(leftP, rightP, null, null)
+      + '<tr class="tv-tot"><td>Total</td><td class="num">' + formatINR(sumAmt(leftP)) + '</td><td class="tv-mid"></td><td>Total</td><td class="num">' + formatINR(sumAmt(rightP)) + '</td></tr>'
+      + '</table>';
+    const diff = t.purchases + t.directExpenses - (data.lines.cogs || 0);
+    if (Math.abs(diff) > 1) {
+      h += '<div class="kpi-note" style="margin-top:8px;">Tally&rsquo;s Purchase and Direct Expense totals differ from the sum of the ledgers listed by '
+        + formatINR(diff) + ' (an entry dated later this month); it clears on the next pull.</div>';
+    }
+    panel.innerHTML = h;
   }
 
   function renderBreakdownSubtable(rows) {
